@@ -1,0 +1,220 @@
+version: '3'
+
+env:
+  ANSIBLE_INVENTORY: hosts.yml
+    
+  # TF_LOG: 1
+
+vars:
+  INIT_TAGS: prerequisite
+  MAIN_PLAYBOOK: deploy-microcloud.yml
+  INFRA_TEMPLATE: ./infra-template
+
+tasks:
+  ############# Checks #############
+  # Run the tasks in sequence
+  check:
+    cmds:
+      - task: yq_check
+      - task: terraform_check
+      - task: ansible_check
+  # Define tasks
+  terraform_check:
+    desc: Check if Terraform is installed
+    internal: true
+    silent: true
+    cmds:
+      - |
+        if command -v terraform &> /dev/null; then
+          echo "✅️ Terraform is installed."
+        else
+          echo "❌ Terraform is not installed. See https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli"
+          exit 10
+        fi
+  ansible_check:
+    desc: Check if Ansible is installed
+    internal: true
+    silent: true
+    cmds:
+      - |
+        if command -v ansible &> /dev/null; then
+          echo "✅️ Ansible is installed."
+        else
+          echo "❌ Ansible is not installed. See https://docs.ansible.com/ansible/latest/installation_guide/intro_installation.html"
+          exit 10
+        fi
+  yq_check:
+    desc: Check if yq is installed
+    internal: true
+    silent: true
+    cmds:
+      - |
+        if command -v yq &> /dev/null; then
+          echo "✅️ yq is installed."
+        else
+          echo "❌ yq is not installed. https://github.com/mikefarah/yq/#install"
+          exit 10
+        fi
+  envvar_check:
+    vars:
+      # get from parent
+      PROVIDER: '{{default "undefined" .PROVIDER}}'
+      GROUP: '{{default "undefined" .GROUP}}'
+      REQUIRED_VARS:
+        sh: yq '. | join(" ")' "./infra-template/{{.PROVIDER}}/required.yml"
+    dotenv: ['./group_vars/{{.GROUP}}.env', './group_vars/.env', '.env']
+    cmds:
+      - for: { var: REQUIRED_VARS }
+        cmd: |
+          if [[ -v {{.ITEM}} ]]; then
+              echo "✅️ Verify that env variable {{.ITEM}} is present for provider {{.PROVIDER}}."
+          else
+              echo "❌ Verify that env variable {{.ITEM}} is present for provider {{.PROVIDER}}."
+              exit 12
+          fi
+  ############# Check if packages are installed #############
+
+  ############# Deploy Infra #############
+  default:
+    vars:
+      MY_VAR: |-
+        foo.txt
+        bar.txt
+    cmds:
+      - for: { var: MY_VAR, split: '\n' }
+        cmd: echo {{.ITEM}}
+
+  get-ips|digital_ocean:
+    vars:
+      # get from parent
+      GROUP: '{{default "undefined" .GROUP}}'
+    cmds:
+      - |
+        jq '.resources[] |
+          select(.type == "digitalocean_droplet") |
+          .instances[].attributes.ipv4_address' \
+          ./infra-{{.GROUP}}/digital_ocean/terraform.tfstate
+    
+
+  deploy-provider-infra:
+    desc: deploys the configured infra for the specified cloud provider.
+    internal: true
+    vars:
+      PROVIDER: '{{default "undefined" .PROVIDER}}'
+      GROUP: '{{default "undefined" .GROUP}}'
+    dotenv: ['./group_vars/{{.GROUP}}.env', './group_vars/.env', '.env']
+    cmds:
+      # - terraform -chdir=./infra-{{.GROUP}}/{{.PROVIDER}} init
+      # - |
+      #   terraform -chdir=./infra-{{.GROUP}}/{{.PROVIDER}} plan \
+      #     -var "provider_token=${DO_PAT}"
+      # - |
+      #   terraform -chdir=./infra-{{.GROUP}}/{{.PROVIDER}} apply \
+      #     -var "provider_token=${DO_PAT}" {{.CLI_ARGS}}
+      # - echo ${getip_command_{{.PROVIDER}}} ./infra-{{.GROUP}}/{{.PROVIDER}}/terraform.tfstate
+      - echo "provider is {{.PROVIDER}}"
+      - task: "get-ips|{{.PROVIDER}}"
+        vars:
+          GROUP: '{{.GROUP}}'
+        # silent: true
+
+  deploy-group-infra:
+    desc: creates infra resources from the infra-template and provided values.
+    internal: true
+    silent: true
+    vars:
+      GROUP: '{{default "invalid" .GROUP}}'
+      PROVIDERS:
+        sh: yq '.infra_providers | join(" ")' "./group_vars/all.yml"
+    cmds:
+      - for: { var: PROVIDERS }
+        task: envvar_check
+        vars:
+          GROUP: '{{ .GROUP }}'
+          PROVIDER: '{{ .ITEM }}'
+        silent: true
+      - for: { var: PROVIDERS }
+        cmd: |-
+          mkdir -p ./infra-{{.GROUP}}
+          # rm -rf ./infra-{{.GROUP}}
+          cp -r {{.INFRA_TEMPLATE}}/{{.ITEM}} ./infra-{{.GROUP}}
+      - for: { var: PROVIDERS }
+        task: deploy-provider-infra
+        vars:
+          GROUP: '{{ .GROUP }}'
+          PROVIDER: '{{ .ITEM }}'
+      # - for: { var: PROVIDERS }
+      #   cmd: echo "provider name is {{.ITEM}}"
+  
+  infra-deploy:
+    vars:
+      # PROVIDER: '{{index .MATCH 0}}'
+      GROUPS:
+        sh: yq '.groups | join(" ")' "./group_vars/all.yml"
+    cmds:
+      - for: { var: GROUPS }
+        task: deploy-group-infra
+        vars:
+          GROUP: '{{.ITEM}}'
+        # silent: true
+  
+  ############# Deploy Infra #############
+
+  ############# Destroy Infra #############
+  infra-destroy:
+    vars:
+      GROUPS:
+        sh: yq '.groups | join(" ")' "./group_vars/all.yml"
+    cmds:
+      - for: { var: GROUPS }
+        task: destroy-group-infra
+        vars:
+          GROUP: '{{.ITEM}}'
+        # silent: true
+  
+  destroy-group-infra:
+    desc: destroys the infra resources created.
+    internal: true
+    # silent: true
+    vars:
+      GROUP: '{{default "invalid" .GROUP}}'
+      PROVIDERS:
+        sh: yq '.infra_providers | join(" ")' "./group_vars/all.yml"
+    dotenv: ['./group_vars/{{.GROUP}}.env', './group_vars/.env', '.env']
+    cmds:
+      - for: { var: PROVIDERS }
+        task: envvar_check
+        vars:
+          GROUP: '{{ .GROUP }}'
+          PROVIDER: '{{ .ITEM }}'
+        silent: true
+      - for: { var: PROVIDERS }
+        cmd: |-
+          terraform -chdir=./infra-{{.GROUP}}/{{.ITEM}} destroy \
+            -var "provider_token=${DO_PAT}" {{.CLI_ARGS}}
+        silent: true
+  ############# Destroy Infra #############
+  # example usage task list-all-dev
+  # where dev will be the group
+  list-all-*:
+    vars:
+      GROUP: '{{index .MATCH 0}}'
+    cmds:
+      - ansible-playbook --limit {{.GROUP}} --list-tasks --list-hosts {{.MAIN_PLAYBOOK}}
+  list-init-*: 
+    vars:
+      GROUP: '{{index .MATCH 0}}'
+    cmds:
+      - |-
+        ansible-playbook --limit {{.GROUP}} --tags {{.INIT_TAGS}}\
+          --list-tasks --list-hosts {{.MAIN_PLAYBOOK}}
+  init-*:
+    vars:
+      GROUP: '{{index .MATCH 0}}'
+    cmds:
+      - ansible-playbook --limit {{.GROUP}} --tags {{.INIT_TAGS}}{{.MAIN_PLAYBOOK}}
+  deploy-all-*:
+    vars:
+      GROUP: '{{index .MATCH 0}}'
+    cmds:
+      - ansible-playbook --limit {{.GROUP}} {{.MAIN_PLAYBOOK}}

@@ -1,0 +1,37 @@
+---
+#
+# Tasks to be applied to some servers
+#
+
+# Add tasks for a specific role to this playbook...
+
+- name: Install lxd snap (including edge channels)
+  snap:
+    name: lxd
+    channel: "+"
+    state: present
+  tags: ["install"]
+
+- name: Install microceph snap from quincy/stable channel (including edge)
+  snap:
+    name: microceph
+    channel: quiney/stable
+    state: present
+    classic: true  # Required for channels other than the default
+  tags: ["install"]
+
+- name: Install microovn snap from 22.03/stable channel (including edge)
+  snap:
+    name: microovn
+    channel: 22.03/stable
+    state: present
+    classic: true  # Required for channels other than the default
+  tags: ["install"]
+
+- name: Install microcloud snap from latest/stable channel (including edge)
+  snap:
+    name: microcloud
+    channel: latest/stable
+    state: present
+    classic: true  # Required for channels other than the default
+  tags: ["install"]

@@ -1,0 +1,65 @@
+---
+#
+# Tasks to be applied to all servers
+#
+
+# - name: Check connectivity
+#   ping:
+#     data: alive
+#   tags: check
+
+# Add further tasks for the common role (applied to all servers) to this playbook...
+
+
+
+- name: Update package lists
+  apt: update_cache=yes
+  tags: ["prerequisite"]
+
+- name: Install snapd package
+  apt: name=snapd state=present
+  tags: ["prerequisite"]
+
+- name: Install core snap
+  snap:
+    name: core
+    state: present
+  tags: ["prerequisite"]
+
+- name: Install modprobe package (if needed)
+  apt:
+    name: modprobe
+    state: present
+  tags: ["prerequisite"]
+
+- name: Load dummy kernel module
+  modprobe:
+    name: dummy
+  tags: ["prerequisite"]
+
+- name: Create dummy interface eth9
+  command: ip link add eth9 type dummy
+  tags: ["prerequisite"]
+
+- name: Set random MAC address for eth9 (requires community.general collection)
+  set_fact:
+    random_mac: "{{ lookup('pipe', 'macchanger -r') }}"
+  tags: ["prerequisite"]
+
+- name: Assign random MAC address to eth9
+  command: ip link set dev eth9 address '{{ random_mac }}'
+  tags: ["prerequisite"]
+
+# ip address is irrelevant
+- name: Add IP address 192.168.1.100/24 to eth9
+  command: ip addr add 192.168.1.100/24 brd + dev eth0 label eth0:0
+  tags: ["prerequisite"]
+
+- name: Bring eth9 interface up
+  command: ip link set dev eth9 up
+  tags: ["prerequisite"]
+
+- name: Show interface eth9 information (for informational purposes only)
+  debug:
+    msg: "{{ ansible_interfaces | selectattr('name', 'eth9') }}"
+  tags: ["prerequisite"]

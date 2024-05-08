@@ -1,0 +1,9 @@
+---
+- hosts: all
+  roles:
+    - microcloud-prerequisites
+    - microcloud-install
+ 
+# Associate further roles to servers in specific group in this file...
+
+# ...

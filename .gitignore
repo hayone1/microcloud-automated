@@ -1,0 +1,17 @@
+*.retry
+
+#  Local .terraform directories
+**/.terraform/*
+
+# .tfstate files
+*.tfstate
+*.tfstate.*
+
+# .tfvars files
+*.tfvars
+
+# gcloud configs
+account.json
+
+*.secret.yml
+*.env
