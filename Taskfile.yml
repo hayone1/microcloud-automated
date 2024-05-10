@@ -61,7 +61,10 @@ tasks:
       PROVIDER: '{{default "undefined" .PROVIDER}}'
       GROUP: '{{default "undefined" .GROUP}}'
       REQUIRED_VARS:
-        sh: yq '. | join(" ")' "./infra-template/{{.PROVIDER}}/required.yml"
+        sh: |-
+          if [ -f "./{{.INFRA_TEMPLATE}}/{{.PROVIDER}}/required.yml" ]; then
+            yq '. | join(" ")' "./{{.INFRA_TEMPLATE}}/{{.PROVIDER}}/required.yml"
+          fi
     dotenv: ['./group_vars/{{.GROUP}}.env', './group_vars/.env', '.env']
     cmds:
       - for: { var: REQUIRED_VARS }
@@ -84,6 +87,90 @@ tasks:
       - for: { var: MY_VAR, split: '\n' }
         cmd: echo {{.ITEM}}
 
+  infra-deploy:
+    vars:
+      GROUPS:
+        sh: yq '.groups | join(" ")' "./group_vars/all.yml"
+    cmds:
+      - for: { var: GROUPS }
+        task: deploy-group-infra
+        vars:
+          GROUP: '{{.ITEM}}'
+        # silent: true
+
+  deploy-group-infra:
+    desc: creates infra resources from the {{.INFRA_TEMPLATE}} and provided values.
+    internal: true
+    silent: true
+    vars:
+      GROUP: '{{default "invalid" .GROUP}}'
+      PROVIDERS:
+        sh: yq '.infra_providers | keys | join(" ")' "./group_vars/{{.GROUP}}.yml"
+    cmds:
+      # has not effect if no env var is needed.
+      - for: { var: PROVIDERS }
+        task: envvar_check
+        vars:
+          GROUP: '{{ .GROUP }}'
+          PROVIDER: '{{ .ITEM }}'
+        silent: true
+      # create a folder for the infra provider
+      - for: { var: PROVIDERS }
+        cmd: |-
+          host_exists=$(yq '.infra_providers.{{.ITEM}} |
+            has("hosts")' 'group_vars/{{.GROUP}}.yml')
+          
+          if  [ "$host_exists" == 'false' ] &&
+              [ -d {{.INFRA_TEMPLATE}}/{{.ITEM}} ]; then
+            mkdir -p ./infra-{{.GROUP}}
+            cp -r {{.INFRA_TEMPLATE}}/{{.ITEM}} ./infra-{{.GROUP}}
+          fi
+      - for: { var: PROVIDERS }
+        task: deploy-provider-infra
+        vars:
+          GROUP: '{{ .GROUP }}'
+          PROVIDER: '{{ .ITEM }}'
+      # - for: { var: PROVIDERS }
+      #   cmd: echo "provider name is {{.ITEM}}"
+
+  deploy-provider-infra:
+    desc: deploys the configured infra for the specified cloud provider.
+    internal: true
+    vars:
+      PROVIDER: '{{default "undefined" .PROVIDER}}'
+      GROUP: '{{default "undefined" .GROUP}}'
+      # set the task to get ips based on if the cloud provider
+      # is supported ot arbitrary
+      GET_IP_TASK:
+        sh: |
+          if [ -d {{.INFRA_TEMPLATE}}/{{.PROVIDER}} ]; then
+            echo "get-ips|{{.PROVIDER}}"
+          else
+            echo "get-custom-ips"
+          fi
+    dotenv: ['./group_vars/{{.GROUP}}.env', './group_vars/.env', '.env']
+    cmds:
+      - echo "creating infra for provider - {{.PROVIDER}}"
+      - |
+        if [ -d ./infra-{{.GROUP}}/{{.PROVIDER}} ]; then
+          terraform -chdir=./infra-{{.GROUP}}/{{.PROVIDER}} init
+        fi
+      - |
+        if [ -d ./infra-{{.GROUP}}/{{.PROVIDER}} ]; then
+          terraform -chdir=./infra-{{.GROUP}}/{{.PROVIDER}} plan \
+            -var "provider_token=${DO_PAT}"
+        fi
+      - |
+        if [ -d ./infra-{{.GROUP}}/{{.PROVIDER}} ]; then
+          terraform -chdir=./infra-{{.GROUP}}/{{.PROVIDER}} apply \
+            -var "provider_token=${DO_PAT}" {{.CLI_ARGS}}
+        fi
+      - task: '{{.GET_IP_TASK}}'
+        vars:
+          GROUP: '{{.GROUP}}'
+          PROVIDER: '{{.PROVIDER}}'
+        # silent: true
+
   get-ips|digital_ocean:
     vars:
       # get from parent
@@ -94,70 +181,21 @@ tasks:
           select(.type == "digitalocean_droplet") |
           .instances[].attributes.ipv4_address' \
           ./infra-{{.GROUP}}/digital_ocean/terraform.tfstate
-    
-
-  deploy-provider-infra:
-    desc: deploys the configured infra for the specified cloud provider.
-    internal: true
+  
+  # others
+  get-custom-ips:
     vars:
-      PROVIDER: '{{default "undefined" .PROVIDER}}'
+      # get from parent
       GROUP: '{{default "undefined" .GROUP}}'
-    dotenv: ['./group_vars/{{.GROUP}}.env', './group_vars/.env', '.env']
+      PROVIDER: '{{default "undefined" .PROVIDER}}'
     cmds:
-      # - terraform -chdir=./infra-{{.GROUP}}/{{.PROVIDER}} init
-      # - |
-      #   terraform -chdir=./infra-{{.GROUP}}/{{.PROVIDER}} plan \
-      #     -var "provider_token=${DO_PAT}"
-      # - |
-      #   terraform -chdir=./infra-{{.GROUP}}/{{.PROVIDER}} apply \
-      #     -var "provider_token=${DO_PAT}" {{.CLI_ARGS}}
-      # - echo ${getip_command_{{.PROVIDER}}} ./infra-{{.GROUP}}/{{.PROVIDER}}/terraform.tfstate
-      - echo "provider is {{.PROVIDER}}"
-      - task: "get-ips|{{.PROVIDER}}"
-        vars:
-          GROUP: '{{.GROUP}}'
-        # silent: true
+    # 1 is the source(right), 0 is the destination(left)
+    - |
+      yq eval-all '(select(fileIndex == 1) | .{{.PROVIDER}}) as $prodr |
+                    select(fileIndex == 0) |
+                    .{{.GROUP}}_{{.PROVIDER}} = (.{{.GROUP}}_{{.PROVIDER}} * $prodr | sort_keys(..))' \
+          hosts.yml ./group_vars/{{.GROUP}}.yml
 
-  deploy-group-infra:
-    desc: creates infra resources from the infra-template and provided values.
-    internal: true
-    silent: true
-    vars:
-      GROUP: '{{default "invalid" .GROUP}}'
-      PROVIDERS:
-        sh: yq '.infra_providers | join(" ")' "./group_vars/all.yml"
-    cmds:
-      - for: { var: PROVIDERS }
-        task: envvar_check
-        vars:
-          GROUP: '{{ .GROUP }}'
-          PROVIDER: '{{ .ITEM }}'
-        silent: true
-      - for: { var: PROVIDERS }
-        cmd: |-
-          mkdir -p ./infra-{{.GROUP}}
-          # rm -rf ./infra-{{.GROUP}}
-          cp -r {{.INFRA_TEMPLATE}}/{{.ITEM}} ./infra-{{.GROUP}}
-      - for: { var: PROVIDERS }
-        task: deploy-provider-infra
-        vars:
-          GROUP: '{{ .GROUP }}'
-          PROVIDER: '{{ .ITEM }}'
-      # - for: { var: PROVIDERS }
-      #   cmd: echo "provider name is {{.ITEM}}"
-  
-  infra-deploy:
-    vars:
-      # PROVIDER: '{{index .MATCH 0}}'
-      GROUPS:
-        sh: yq '.groups | join(" ")' "./group_vars/all.yml"
-    cmds:
-      - for: { var: GROUPS }
-        task: deploy-group-infra
-        vars:
-          GROUP: '{{.ITEM}}'
-        # silent: true
-  
   ############# Deploy Infra #############
 
   ############# Destroy Infra #############
@@ -170,6 +208,8 @@ tasks:
         task: destroy-group-infra
         vars:
           GROUP: '{{.ITEM}}'
+      - for: { var: GROUPS }
+        cmd: rm -rf infra-{{.ITEM}}
         # silent: true
   
   destroy-group-infra:
@@ -179,9 +219,10 @@ tasks:
     vars:
       GROUP: '{{default "invalid" .GROUP}}'
       PROVIDERS:
-        sh: yq '.infra_providers | join(" ")' "./group_vars/all.yml"
+        sh: yq '.infra_providers | join(" ")' "./group_vars/{{.GROUP}}.yml"
     dotenv: ['./group_vars/{{.GROUP}}.env', './group_vars/.env', '.env']
     cmds:
+      # env variables also need to exist for destroy
       - for: { var: PROVIDERS }
         task: envvar_check
         vars:
@@ -190,8 +231,10 @@ tasks:
         silent: true
       - for: { var: PROVIDERS }
         cmd: |-
-          terraform -chdir=./infra-{{.GROUP}}/{{.ITEM}} destroy \
-            -var "provider_token=${DO_PAT}" {{.CLI_ARGS}}
+          if [ -d ./infra-{{.GROUP}}/{{.ITEM}} ]; then
+            terraform -chdir=./infra-{{.GROUP}}/{{.ITEM}} destroy \
+              -var "provider_token=${DO_PAT}" {{.CLI_ARGS}}
+          fi
         silent: true
   ############# Destroy Infra #############
   # example usage task list-all-dev

@@ -4,6 +4,7 @@
 locals {
   # get environment name from parent folder
   parent_path = abspath("${path.module}")
+  folder_name = basename(local.parent_path)
   parent_folder_name = basename(dirname(local.parent_path))
   # group si synonymous to environment here
   group = split("-", local.parent_folder_name)[1] # eg. dev
@@ -22,9 +23,14 @@ locals {
     "large"    = "s-4vcpu-8gb"
     "xlarge"   = "s-8vcpu-16gb"
     "2xlarge"  = "s-16vcpu-32gb"
+    "custom"  = "insert_custom_size"
   }
 
-  selected_server_size = local.server_sizes[local.group_config.size]
+  selected_server_size = (
+    local.server_sizes[
+      local.group_config.infra_providers[local.folder_name].size
+      ]
+  )
   server_user          = local.group_config.ansible_user
 }
 

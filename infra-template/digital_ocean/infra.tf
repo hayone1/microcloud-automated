@@ -20,10 +20,10 @@ resource "digitalocean_ssh_key" "terraform_ssh" {
 }
 
 resource "digitalocean_droplet" "microcloud-droplet" {
-  count     = local.group_config.quantity
+  count     = local.group_config.infra_providers[local.folder_name].quantity
   image     = "ubuntu-22-04-x64"
   name      = "${var.prefix}-droplet-${count.index}"
-  region    = "${local.group_config.digital_ocean_region}"
+  region    = local.group_config.infra_providers[local.folder_name].region
   size      = "${local.selected_server_size}"
   ssh_keys  = [digitalocean_ssh_key.terraform_ssh.fingerprint]
 
@@ -50,7 +50,7 @@ resource "digitalocean_droplet" "microcloud-droplet" {
 
 # resource "digitalocean_loadbalancer" "microcloud_lb" {
 #   name    = "${var.prefix}-lb"
-#   region  = local.group_config.digital_ocean_region
+#   region  = local.group_config[local.folder_name].digital_ocean_region
 
 #   forwarding_rule {
 #     entry_port          = 80

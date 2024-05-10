@@ -2,21 +2,31 @@
 
 # Add variables which apply to servers in a specific group to this file...
 
-# custom, nano, micro, small, medium, large, xlarge, 2xlarge
-size: nano
-# number of servers to be provisioned
-quantity: 3
 ansible_user: root
 # where required, the name of the ssh key
 # configured on the cloud provider
 # ssh_key_name: root_ssh
 # you only need to set the regions that you're
 # interested in
-digital_ocean_region: "nyc3"
-aws_region: xx
-azure_region: yy
 
-self_hosted:
+# supported cloud providers are
+# |digital_ocean|
+# you can also put arbitrary values
+infra_providers:
+  self_hosted:
+    hosts:
+      64.18.0.0:
+      64.18.0.1:
+  digital_ocean:
+    hosts:
+      do1.exammple.com:
+      do2.example.com:
+    # custom, nano, micro, small, medium, large, xlarge, 2xlarge
+    size: nano
+    # number of servers to be provisioned
+    quantity: 3
+    # see valid regions here https://slugs.do-api.dev/
+    region: "nyc3"
 
 # # weather or not to load balance the servers
 # deploy_loadbalancer: true

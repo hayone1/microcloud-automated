@@ -2,6 +2,7 @@
 
 #  Local .terraform directories
 **/.terraform/*
+_debug/*
 
 # .tfstate files
 *.tfstate
@@ -17,3 +18,4 @@ account.json
 *.env
 
 *id_rsa*
+

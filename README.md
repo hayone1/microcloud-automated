@@ -10,7 +10,7 @@ This project is generally intended for experimentation/evaluation and can be imp
 ## 1. Getting-Started
 
 Download (clone) or fork this repository.
-The major places of interest for customization will be in the [group_vars](xxx) folder as well as the `hosts.yml` file.
+The major places of interest for customization will be in the [group_vars](xxx) folder.
 
 ### 1.1 Pre-requisites
 - [yq](https://github.com/mikefarah/yq/#install)
@@ -21,18 +21,7 @@ To-Do: link to infra folder
 ### 1.2 Infra
 To setup microcloud you will need to have compute and network resources. This could be from a cloud provider or your private servers.
 
-
-- Inside the [group_vars](xxx) folder, edit the `infra-providers` field of the `all.yml` file and specify the cloud provider(s) you are interested in deploying compute to. You can put any arbitrary value or one of the supported ones for automated compute deployment `digital_ocean`.
-eg.
-```
-infra_providers:
-  - digital_ocean
-  - self_hosted
-  - ibm_cloud
-```
-> Important: Only alpha-numeric and characters underscore(_) are supported.
-
-- In the `all.yml` file, also specify the environments you're interested in setting-up under the `groups:` field.
+- Inside the [group_vars](xxx) folder, edit the `all.yml` file, and specify the environments you're interested in setting-up under the `groups:` field. Arbitrary values are allowed
  eg.
 ```
 groups:
@@ -40,20 +29,72 @@ groups:
   - uat
 ```
 
-- In the same [group_vars](xxx) folder, duplicate the `dev.yml` to match the number of items/environments you have in the all.yaml `groups:` field and rename each file to match the items in the groups.
+- Also in the group_vars folder, duplicate the `dev.yml` and `dev.env`(used to hold required environment variables and secrets) files to match the number of items/environments you have put in the `groups:` field and rename each file to match the items in the groups.
 eg.
 ```
 dev.yml
 uat.yml
+dev.env
+uat.env
 ```
-> You can create as many environment specific yaml files as you want, but only the ones specified in the groups field will be considered in the automated script.
+- In each group/environment specific file, specify the `ansible_user:` and `infra_provider` you are interested in deploying compute to. You can deploy arbitrary values or one of the supported cloud providers of this project.
 
-<!-- - At this point, **if you only chose self_hosted or any other unsupported value in your infra_providers**, then you can jump to the [deployment](#2) section. -->
+eg.
+``` yaml
+ansible_user: root
+infra_providers:
+  self_hosted:
+  digital_ocean:
+```
+> Currently supported cloud providers are: `digital_ocean`.
 
-- Take a detour and head over to the [infra-template](xxx) and locate the folder(s) of the infra_providers you chose. Go through their respective README(s).
+- If using a supported cloud provider, you can specify the `size`, `quantity:` and `region:` under the cloud provider's field.
+eg.
+``` yaml
+infra_providers:
+  digital_ocean:
+    # custom, nano, micro, small, medium, large, xlarge, 2xlarge
+    size: nano
+    # number of servers to be provisioned
+    quantity: 3
+    # see valid regions here https://slugs.do-api.dev/
+    region: "nyc3"
+```
 
-  If your cloud provider is not one of the supported providers, then go through the README in the [others](xxx) folder.
+- If you have already setup your compute by yourself or used a provivder that is not supported, then you'll need to specify the `hosts`.
+
+  This will cause other configs under the provider to be skippeed. This is also essentially ansible hosts config so you can put values that are specific . See [here](https://docs.ansible.com/ansible/latest/inventory_guide/intro_inventory.html).
+``` yaml
+infra_providers:
+  self_hosted:
+    hosts:
+      host.example.com:
+        http_port: 80
+        maxRequestsPerChild: 808
+      www[01:50].example.com:
+    quantity: 3 # overriden, has not effect
+```
+> Important: This project is currently only guarranteed to work on **ubuntu** >= 22 OS and not otherwise.
+
+- You can also have multiple infra_providers.
+eg.
+```yaml
+infra_providers:
+  self_hosted:
+    hosts:
+      64.18.0.0:
+      64.18.0.1:
+  digital_ocean:
+    size: nano
+    quantity: 3
+    region: "nyc3"
+```
+
+- Take a detour and head over to the [infra-template](xxx) folder and locate the sub folder(s) of the infra_provider(s) you chose and go through their respective README(s).
+
+  If your cloud provider is not one of the supported providers, then go through the README in the [others](xxx) sub folder.
   When you are done, you can continue with the next step.
+  ___
 
 - Once details of your cloud provider(s) has been provided. Run the below command to set up your compute.
 ```

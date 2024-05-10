@@ -6,16 +6,3 @@
 # your environments, eg. dev, test, uat, sit, prod etc.
 groups:
   - dev
-
-# supported cloud providers are
-# digital_ocean
-# you can also put arbitrary values
-infra_providers:
-  - self_hosted
-  - digital_ocean
-
-
-  
-# Add further variables which apply to all servers to this file...
-
-...
