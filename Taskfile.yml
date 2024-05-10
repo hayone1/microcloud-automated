@@ -62,8 +62,8 @@ tasks:
       GROUP: '{{default "undefined" .GROUP}}'
       REQUIRED_VARS:
         sh: |-
-          if [ -f "./{{.INFRA_TEMPLATE}}/{{.PROVIDER}}/required.yml" ]; then
-            yq '. | join(" ")' "./{{.INFRA_TEMPLATE}}/{{.PROVIDER}}/required.yml"
+          if [ -f "./{{.INFRA_TEMPLATE}}/{{.PROVIDER}}/config.yml" ]; then
+            yq '.required_env | join(" ")' "./{{.INFRA_TEMPLATE}}/{{.PROVIDER}}/config.yml"
           fi
     dotenv: ['./group_vars/{{.GROUP}}.env', './group_vars/.env', '.env']
     cmds:
@@ -145,9 +145,9 @@ tasks:
       GET_IP_TASK:
         sh: |
           if [ -d ./infra-{{.GROUP}}/{{.PROVIDER}} ]; then
-            echo "get-ips|{{.PROVIDER}}"
+            echo "get-ips-provider"
           else
-            echo "get-custom-ips"
+            echo "get-ips-custom"
           fi
     dotenv: ['./group_vars/{{.GROUP}}.env', './group_vars/.env', '.env']
     cmds:
@@ -177,30 +177,34 @@ tasks:
           PROVIDER: '{{.PROVIDER}}'
         # silent: true
 
-  get-ips|digital_ocean:
+  get-ips-provider:
     vars:
       # get from parent
       GROUP: '{{default "undefined" .GROUP}}'
+      PROVIDER: '{{default "undefined" .PROVIDER}}'
+      GET_IP_COMMAND:
+        sh: yq '.get-ips' './infra-{{.GROUP}}/{{.PROVIDER}}/config.yml' | tr -d '\n'
     cmds:
-      # 1 is the source(right), 0 is the destination(left)
+      - export "{{.GROUP}}_{{.PROVIDER}}_ips={{.GET_IP_COMMAND}} ./infra-{{.GROUP}}/{{.PROVIDER}}/terraform.tfstate"
       - |
-        echo "IPs for [{{.GROUP}}|digital_ocean] : $(yq -r '.resources[] |
-                    select(.type == "digitalocean_droplet") |
-                    [.instances[].attributes.ipv4_address] | join(",")' ./infra-{{.GROUP}}/digital_ocean/terraform.tfstate)"
+        echo "IPs for [{{.GROUP}}|{{.PROVIDER}}]: ${{.GROUP}}_{{.PROVIDER}}_ips"
       - |
-        IPs=$(yq -r '.resources[] |
-                    select(.type == "digitalocean_droplet") |
-                    .instances[].attributes.ipv4_address as $IPs ireduce({}; .[$IPs | . style="flow"] = {})' \
-            ./infra-{{.GROUP}}/digital_ocean/terraform.tfstate)
-            
-        result=$(echo "$IPs" | yq eval-all 'select(fileIndex == 1) as $provider_hosts |
-                select(fileIndex == 0) | .{{.GROUP}}.children.digital_ocean.hosts = (.{{.GROUP}}.children.digital_ocean.hosts * $provider_hosts |
-                sort_keys(..))' hosts.yml -)
+        formatted_IPs=$(yq --null-input 'strenv({{.GROUP}}_{{.PROVIDER}}_ips) |
+          split(",") |
+          .[] as $IPs ireduce({}; .[$IPs | . style="flow"] = "<remove-this>")')
 
-        echo "${result//" {}"/''}" > hosts.yml
+        result=$(echo "$formatted_IPs" |
+          yq eval-all 'select(fileIndex == 1) as $provider_hosts |
+              select(fileIndex == 0) |
+              .{{.GROUP}}.children.{{.PROVIDER}}.hosts = (.{{.GROUP}}.children.{{.PROVIDER}}.hosts * $provider_hosts |
+              sort_keys(..))' hosts.yml -)
+
+        echo "${result//" <remove-this>"/''}" > hosts.yml
+      - echo "✅️ hosts.yml updated successfully"
+
   
   # others
-  get-custom-ips:
+  get-ips-custom:
     vars:
       # get from parent
       GROUP: '{{default "undefined" .GROUP}}'
@@ -215,6 +219,7 @@ tasks:
                     select(fileIndex == 0) |
                     .{{.GROUP}}.children.{{.PROVIDER}}.hosts = (.{{.GROUP}}.children.{{.PROVIDER}}.hosts * $provider_hosts | sort_keys(..))' \
           hosts.yml ./group_vars/{{.GROUP}}.yml
+    - echo "✅️ hosts.yml updated successfully"
 
   ############# Deploy Infra #############
 
@@ -228,6 +233,8 @@ tasks:
         task: destroy-group-infra
         vars:
           GROUP: '{{.ITEM}}'
+      - for: { var: GROUPS }
+        cmd: yq --inplace 'del(.{{.ITEM}})' hosts.yml
       - for: { var: GROUPS }
         cmd: rm -rf infra-{{.ITEM}}
         # silent: true
