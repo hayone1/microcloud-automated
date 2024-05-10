@@ -23,6 +23,8 @@ infra_providers:
     #   do2.example.com:
     # custom, nano, micro, small, medium, large, xlarge, 2xlarge
     size: nano
+    # valid only if size is set to custom
+    custom_size: s-4vcpu-8gb
     # number of servers to be provisioned
     quantity: 2
     # see valid regions here https://slugs.do-api.dev/

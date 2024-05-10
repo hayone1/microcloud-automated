@@ -1,0 +1,88 @@
+name: User stories
+description: Create user stories that will make up features of the app.
+title: "[User-Story]: "
+labels: ["user-story", "feature"]
+assignees:
+  - octocat
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this user story!
+  # As a (user role)
+  - type: textarea
+    id: story
+    attributes:
+      label: As a...
+      description: |
+        Describe the user role impacted by this story, 
+        the desired outcome the user wants to achieve
+        and the benefit or value of achieving the desired outcome.
+      placeholder: |
+        **As a** mongocd user
+        **I need** to be able to initialize/scaffold my mongocd workspace.
+        **So that** I have a template that I can easily work with.
+      value: |
+        **As a** [role]
+        **I need** [benefit]
+        **So that** [end result]
+    validations:
+      required: true
+  # Acceptance criteria (optional)
+  - type: textarea
+    id: criteria
+    attributes:
+      label: Acceptance criteria (optional)
+      description: List specific conditions that define a successful implementation.
+      placeholder: |
+        ```gherkin
+        Given I have the mongocd tool
+        When I run the init command
+        Then I should have a directory with basic and valid configurations.
+        ```
+      value: |
+        ```gherkin
+        Given [some context]
+        When [certain action is taken]
+        Then [the outcome of action is observed]
+        ```
+    validations:
+      required: false
+  - type: textarea
+    id: requirements
+    attributes:
+      label: Assumptions and Requirements (optional)
+      description: List specific technical requirements or behaviours that can guide the implementation details.
+      placeholder: |
+        * The app is able to list the available commands and sub commands with the `--help` parameter.
+        * If a wrong command or subcommand is used, the app should indicate this and show the parent or base command help menu.
+        * If a wrong parameter is used, the app should indicate this and show the corresponding command's help menu.
+      value: |
+        * [document your assumptions]
+        * [document what should happen]
+    validations:
+      required: false
+  - type: dropdown
+    id: impact
+    attributes:
+      label: Impact (optional)
+      description: What level of impact do you feel this has on the tool's usability or functionality?
+      options:
+        - Low
+        - Medium
+        - High
+        - Critical
+      default: 0
+    validations:
+      required: false
+  - type: dropdown
+    id: version
+    attributes:
+      label: Version
+      description: What version of the app are you currenntly running?
+      options:
+        - 0.0.1 (Latest)
+        - 0.0.0 (Others)
+      default: 0
+    validations:
+      required: false

@@ -1,0 +1,89 @@
+name: Bug Report
+description: File a bug report
+title: "[Bug]: "
+labels: ["bug", "triage"]
+# projects: ["octo-org/1", "octo-org/44"]
+assignees:
+  - octocat
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report!
+  - type: input
+    id: contact
+    attributes:
+      label: Contact Details [Optional]
+      description: How can we get in touch with you if we need more info?
+      placeholder: ex. email@example.com
+    validations:
+      required: false
+  - type: textarea
+    validations:
+      required: true
+    attributes:
+      label: Describe the bug
+      description: A clear description of what the bug is.
+  - type: textarea
+    validations:
+      required: true
+    attributes:
+      label: Steps to reproduce
+      description: |
+        Steps to reproduce the problem.
+      placeholder: |
+        For example:
+        1. Install task and ansible
+        2. Run command '...'
+        3. See error
+  - type: textarea
+    validations:
+      required: true
+    attributes:
+      label: Expected behavior
+      description: A brief description of what you expected to happen.
+  - type: textarea
+    attributes:
+      label: Screenshots and recordings
+      description: |
+        If applicable, add screenshots to help explain your problem. You can also record an asciinema session: https://asciinema.org
+  - type: textarea
+    id: commit
+    attributes:
+      label: Commit
+      description: Link to the commit where you first noticed the bug?
+    validations:
+      required: false
+  - type: dropdown
+    id: operating-system
+    attributes:
+      label: |
+        What operating system and architecture did you use.
+        Please note that windows systems aren't really supported
+        in this project yet.
+      multiple: true
+      options:
+        - Windows_x86
+        - Windows_x86_64
+        - macOS_x86_64
+        - macOS_arm64
+        - Linux_x86
+        - Linux_x86_64
+        - Linux_arm
+        - Linux_arm64
+        - Linux_ppc64le
+        - Linux_s390x
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log output
+      description: Please copy and paste any relevant log output. This will be automatically formatted into code, so no need for backticks.
+      render: shell
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Code of Conduct
+      description: By submitting this issue, you agree to follow our [Code of Conduct](https://example.com)
+      options:
+        - label: I agree to follow this project's Code of Conduct
+          required: true

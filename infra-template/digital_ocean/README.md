@@ -18,8 +18,12 @@ export DO_PAT="your_personal_access_token"
 > Tip: .env files don't need double quotes.
 
 - You can return back to the main [README](xxx) to complete the setup.
-<!-- - Create ssh keys on the host/runner device and and upload the public key to digital ocean.
-See how to do so [**here**](https://docs.digitalocean.com/products/droplets/how-to/add-ssh-keys/to-team/) -->
+___
+
+The terraform script aut-generates temporary ssh keys. If you would like to create your ssh keys manually.
+See how to do so [**here**](https://docs.digitalocean.com/products/droplets/how-to/add-ssh-keys/to-team/).
+
+This would however require you to personally edit the `infra.tf` file to use your generated ssh keys. See [how](https://www.digitalocean.com/community/tutorials/how-to-use-terraform-with-digitalocean).
 
 <!-- - Set the name of the ssh key you created in the `ssh_key_name:` field of each of your desired environments.
 eg. (if the key name is `root_ssh`) -->
