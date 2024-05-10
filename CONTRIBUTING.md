@@ -32,6 +32,8 @@ accepted.
 
 If you want to add support automated compute provisioning for a cloud provider, you can duplicate and rename the [provider-scaffold](infra-template/provider-scaffold/) folder and begin editing.
 
+The first place you would want to check is the (variables.tf)[variables.tf] file to see what variables are available.
+
 The goals are to:
 - provision infrastructure that are within the same subnet and/or are visible to eath other over a local/private network.
 - Write an appropriate command(see [config.yml sample](config.yml)) that can extract the IPs into a comma separated string.
