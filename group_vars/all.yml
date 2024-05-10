@@ -1,8 +1,4 @@
 ---
-# Default is to log in as root
-
-# remote_user: root
-
 # your environments, eg. dev, test, uat, sit, prod etc.
 groups:
   - dev

@@ -15,14 +15,14 @@ resource "local_file" "ssh_public_key_openssh" {
 
 # Temporary key pair used for SSH accesss
 resource "digitalocean_ssh_key" "terraform_ssh" {
-  name       = "${local.prefix}-droplet-ssh-key"
+  name       = "${var.prefix}-droplet-ssh-key"
   public_key = tls_private_key.global_key.public_key_openssh
 }
 
 resource "digitalocean_droplet" "microcloud-droplet" {
   count     = local.group_config.infra_providers[local.folder_name].quantity
   image     = "ubuntu-22-04-x64"
-  name      = "${local.prefix}-droplet-${count.index}"
+  name      = "${var.prefix}-droplet-${count.index}"
   region    = local.group_config.infra_providers[local.folder_name].region
   size      = "${local.selected_server_size}"
   ssh_keys  = [digitalocean_ssh_key.terraform_ssh.fingerprint]
@@ -49,7 +49,7 @@ resource "digitalocean_droplet" "microcloud-droplet" {
 }
 
 # resource "digitalocean_loadbalancer" "microcloud_lb" {
-#   name    = "${local.prefix}-lb"
+#   name    = "${var.prefix}-lb"
 #   region  = local.group_config[local.folder_name].digital_ocean_region
 
 #   forwarding_rule {

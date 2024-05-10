@@ -1,5 +1,6 @@
 *.retry
 
+infra-template/*/.terraform*
 #  Local .terraform directories
 **/.terraform/*
 _debug/*

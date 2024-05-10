@@ -18,13 +18,13 @@ infra_providers:
       64.18.0.0:
       64.18.0.1:
   digital_ocean:
-    hosts:
-      do1.exammple.com:
-      do2.example.com:
+    # hosts:
+    #   do1.exammple.com:
+    #   do2.example.com:
     # custom, nano, micro, small, medium, large, xlarge, 2xlarge
     size: nano
     # number of servers to be provisioned
-    quantity: 3
+    quantity: 2
     # see valid regions here https://slugs.do-api.dev/
     region: "nyc3"
 

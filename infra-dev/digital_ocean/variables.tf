@@ -12,8 +12,6 @@ locals {
   # read ansible group_vars related to this group/environment
   # eg. read group_vars/dev.yaml
   group_config  = yamldecode(file("../../group_vars/${local.group}.yml"))
-
-  prefix = "microcloud-"
 }
 
 locals {
@@ -36,10 +34,22 @@ locals {
   server_user          = local.group_config.ansible_user
 }
 
+variable "prefix" {
+  type        = string
+  description = "Prefix added to names of all resources"
+  default     = "microcloud-"
+}
+
+# variable "server_size" {
+#   type        = string
+#   description = "Size used for server"
+#   default     = local.selected_server_size
+# }
+
 ##### provider specific variables ##### 
 variable "provider_token" {
   type        = string
-  description = "Provider specific API token/key used for TF authentication."
+  description = "DigitalOcean API token used to create infrastructure"
 }
 # variable "pvt_key" {}
 ##### provider specific variables ##### 

@@ -136,6 +136,7 @@ tasks:
   deploy-provider-infra:
     desc: deploys the configured infra for the specified cloud provider.
     internal: true
+    silent: true
     vars:
       PROVIDER: '{{default "undefined" .PROVIDER}}'
       GROUP: '{{default "undefined" .GROUP}}'
@@ -143,29 +144,34 @@ tasks:
       # is supported ot arbitrary
       GET_IP_TASK:
         sh: |
-          if [ -d {{.INFRA_TEMPLATE}}/{{.PROVIDER}} ]; then
+          if [ -d ./infra-{{.GROUP}}/{{.PROVIDER}} ]; then
             echo "get-ips|{{.PROVIDER}}"
           else
             echo "get-custom-ips"
           fi
     dotenv: ['./group_vars/{{.GROUP}}.env', './group_vars/.env', '.env']
     cmds:
+      # condition: if the provider's folder has been created and the tfstate file does not exist yet
       - echo "creating infra for provider - {{.PROVIDER}}"
       - |
-        if [ -d ./infra-{{.GROUP}}/{{.PROVIDER}} ]; then
+        if [ -d ./infra-{{.GROUP}}/{{.PROVIDER}} ] &&
+           [ ! -f ./infra-{{.GROUP}}/{{.PROVIDER}}/terraform.tfstate ]; then
           terraform -chdir=./infra-{{.GROUP}}/{{.PROVIDER}} init
         fi
       - |
-        if [ -d ./infra-{{.GROUP}}/{{.PROVIDER}} ]; then
+        if [ -d ./infra-{{.GROUP}}/{{.PROVIDER}} ] &&
+           [ ! -f ./infra-{{.GROUP}}/{{.PROVIDER}}/terraform.tfstate ]; then
           terraform -chdir=./infra-{{.GROUP}}/{{.PROVIDER}} plan \
             -var "provider_token=${DO_PAT}"
         fi
       - |
-        if [ -d ./infra-{{.GROUP}}/{{.PROVIDER}} ]; then
+        if [ -d ./infra-{{.GROUP}}/{{.PROVIDER}} ] &&
+           [ ! -f ./infra-{{.GROUP}}/{{.PROVIDER}}/terraform.tfstate ]; then
           terraform -chdir=./infra-{{.GROUP}}/{{.PROVIDER}} apply \
             -var "provider_token=${DO_PAT}" {{.CLI_ARGS}}
         fi
       - task: '{{.GET_IP_TASK}}'
+        silent: true
         vars:
           GROUP: '{{.GROUP}}'
           PROVIDER: '{{.PROVIDER}}'
@@ -176,11 +182,22 @@ tasks:
       # get from parent
       GROUP: '{{default "undefined" .GROUP}}'
     cmds:
+      # 1 is the source(right), 0 is the destination(left)
       - |
-        jq '.resources[] |
-          select(.type == "digitalocean_droplet") |
-          .instances[].attributes.ipv4_address' \
-          ./infra-{{.GROUP}}/digital_ocean/terraform.tfstate
+        echo "IPs for [{{.GROUP}}|digital_ocean] : $(yq -r '.resources[] |
+                    select(.type == "digitalocean_droplet") |
+                    [.instances[].attributes.ipv4_address] | join(",")' ./infra-{{.GROUP}}/digital_ocean/terraform.tfstate)"
+      - |
+        IPs=$(yq -r '.resources[] |
+                    select(.type == "digitalocean_droplet") |
+                    .instances[].attributes.ipv4_address as $IPs ireduce({}; .[$IPs | . style="flow"] = {})' \
+            ./infra-{{.GROUP}}/digital_ocean/terraform.tfstate)
+            
+        result=$(echo "$IPs" | yq eval-all 'select(fileIndex == 1) as $provider_hosts |
+                select(fileIndex == 0) | .{{.GROUP}}.children.digital_ocean.hosts = (.{{.GROUP}}.children.digital_ocean.hosts * $provider_hosts |
+                sort_keys(..))' hosts.yml -)
+
+        echo "${result//" {}"/''}" > hosts.yml
   
   # others
   get-custom-ips:
@@ -190,10 +207,13 @@ tasks:
       PROVIDER: '{{default "undefined" .PROVIDER}}'
     cmds:
     # 1 is the source(right), 0 is the destination(left)
+    - | 
+      echo "IPs for [{{.GROUP}}|{{.PROVIDER}}]: \
+        $(yq '.infra_providers.{{.PROVIDER}}.hosts | keys | join(",")' ./group_vars/{{.GROUP}}.yml)"
     - |
-      yq eval-all '(select(fileIndex == 1) | .{{.PROVIDER}}) as $prodr |
+      yq --inplace eval-all '(select(fileIndex == 1) | .infra_providers.{{.PROVIDER}}.hosts) as $provider_hosts |
                     select(fileIndex == 0) |
-                    .{{.GROUP}}_{{.PROVIDER}} = (.{{.GROUP}}_{{.PROVIDER}} * $prodr | sort_keys(..))' \
+                    .{{.GROUP}}.children.{{.PROVIDER}}.hosts = (.{{.GROUP}}.children.{{.PROVIDER}}.hosts * $provider_hosts | sort_keys(..))' \
           hosts.yml ./group_vars/{{.GROUP}}.yml
 
   ############# Deploy Infra #############
@@ -219,7 +239,7 @@ tasks:
     vars:
       GROUP: '{{default "invalid" .GROUP}}'
       PROVIDERS:
-        sh: yq '.infra_providers | join(" ")' "./group_vars/{{.GROUP}}.yml"
+        sh: yq '.infra_providers | keys | join(" ")' "./group_vars/{{.GROUP}}.yml"
     dotenv: ['./group_vars/{{.GROUP}}.env', './group_vars/.env', '.env']
     cmds:
       # env variables also need to exist for destroy
@@ -231,7 +251,7 @@ tasks:
         silent: true
       - for: { var: PROVIDERS }
         cmd: |-
-          if [ -d ./infra-{{.GROUP}}/{{.ITEM}} ]; then
+          if [ -f ./infra-{{.GROUP}}/{{.ITEM}}/terraform.tfstate ]; then
             terraform -chdir=./infra-{{.GROUP}}/{{.ITEM}} destroy \
               -var "provider_token=${DO_PAT}" {{.CLI_ARGS}}
           fi

@@ -61,18 +61,18 @@ infra_providers:
     region: "nyc3"
 ```
 
-- If you have already setup your compute by yourself or used a provivder that is not supported, then you'll need to specify the `hosts`.
+- If you have already setup your compute by yourself or used a provivder that is not supported, then you'll need to specify the `hosts` alone.
 
-  This will cause other configs under the provider to be skippeed. This is also essentially ansible hosts config so you can put values that are specific . See [here](https://docs.ansible.com/ansible/latest/inventory_guide/intro_inventory.html).
+  This is essentially ansible hosts config so you can input any valid ansible hosts value. See [here](https://docs.ansible.com/ansible/latest/inventory_guide/intro_inventory.html).
 ``` yaml
 infra_providers:
   self_hosted:
-    hosts:
+    hosts:  # only host field will be used
       host.example.com:
         http_port: 80
         maxRequestsPerChild: 808
       www[01:50].example.com:
-    quantity: 3 # overriden, has not effect
+    quantity: 3 # has not effect
 ```
 > Important: This project is currently only guarranteed to work on **ubuntu** >= 22 OS and not otherwise.
 
