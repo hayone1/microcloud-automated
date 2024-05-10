@@ -131,6 +131,10 @@ you must **ensure they are visible to each other over a local or private network
       - vagrant
     - Add steps to actually provision microcloud cluster.
 
+## Maintainers
+- Boluwatife @hayone1
+- Deborah @Debby77
+
 ## Copyright and license
 
 This project is released under the [GNU GPLv3](LICENSE)
