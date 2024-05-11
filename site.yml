@@ -1,6 +1,0 @@
----
-- import_playbook: setup-dev.yml
-
-# Import all other group playbooks in this file...
-
-# ...

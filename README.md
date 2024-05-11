@@ -39,7 +39,7 @@ uat.yml
 dev.env
 uat.env
 ```
-- In each group/environment specific file, specify the `ansible_user:` and `infra_provider` you are interested in deploying compute to. You can deploy arbitrary values or one of the supported cloud providers of this project.
+- In each group/environment specific file, specify the `ansible_user:`, `ansible_ssh_public_key_file:`, `ansible_ssh_private_key_file:` and `infra_provider` you are interested in deploying compute to. You can deploy arbitrary values or one of the supported cloud providers of this project.
 
 eg.
 ``` yaml

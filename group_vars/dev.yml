@@ -2,7 +2,11 @@
 
 # Add variables which apply to servers in a specific group to this file...
 
+# mandatory
 ansible_user: root
+# mandatory
+ansible_ssh_private_key_file: ~/.ssh/id_rsa
+ansible_ssh_public_key_file: ~/.ssh/id_rsa.pub
 # where required, the name of the ssh key
 # configured on the cloud provider
 # ssh_key_name: root_ssh
@@ -13,22 +17,25 @@ ansible_user: root
 # |digital_ocean|
 # you can also put arbitrary values
 infra_providers:
-  self_hosted:
-    hosts:
-      64.18.0.0:
-      64.18.0.1:
+  # self_hosted:
+  #   hosts:
+  #     64.18.0.0:
+  #     64.18.0.1:
   digital_ocean:
     # hosts:
     #   do1.exammple.com:
     #   do2.example.com:
     # custom, nano, micro, small, medium, large, xlarge, 2xlarge
-    size: nano
-    # valid only if size is set to custom
-    custom_size: s-4vcpu-8gb
+    size: custom
     # number of servers to be provisioned
-    quantity: 2
-    # see valid regions here https://slugs.do-api.dev/
+    quantity: 3
+    # see valid digital ocean regions, os
+    # and sizes here https://slugs.do-api.dev/
     region: "nyc3"
+    os: ubuntu-22-04-x64
+    # valid only if size is set to custom
+    custom_size: s-1vcpu-1gb
+
 
 # # weather or not to load balance the servers
 # deploy_loadbalancer: true

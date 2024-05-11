@@ -155,7 +155,7 @@ tasks:
       - echo "creating infra for provider - {{.PROVIDER}}"
       - |
         if [ -d ./infra-{{.GROUP}}/{{.PROVIDER}} ] &&
-           [ ! -f ./infra-{{.GROUP}}/{{.PROVIDER}}/terraform.tfstate ]; then
+           [ ! -f ./infra-{{.GROUP}}/{{.PROVIDER}}/.terraform.lock.hcl ]; then
           terraform -chdir=./infra-{{.GROUP}}/{{.PROVIDER}} init
         fi
       - |
@@ -171,11 +171,11 @@ tasks:
             -var "provider_token=${DO_PAT}" {{.CLI_ARGS}}
         fi
       - task: '{{.GET_IP_TASK}}'
-        silent: true
+        # silent: true
         vars:
           GROUP: '{{.GROUP}}'
           PROVIDER: '{{.PROVIDER}}'
-        # silent: true
+        silent: true
 
   get-ips-provider:
     vars:
@@ -184,13 +184,14 @@ tasks:
       PROVIDER: '{{default "undefined" .PROVIDER}}'
       GET_IP_COMMAND:
         sh: yq '.get-ips' './infra-{{.GROUP}}/{{.PROVIDER}}/config.yml' | tr -d '\n'
+      IPs:
+        sh: |-
+          {{.GET_IP_COMMAND}} ./infra-{{.GROUP}}/{{.PROVIDER}}/terraform.tfstate
     cmds:
-      - export "{{.GROUP}}_{{.PROVIDER}}_ips={{.GET_IP_COMMAND}} ./infra-{{.GROUP}}/{{.PROVIDER}}/terraform.tfstate"
       - |
-        echo "IPs for [{{.GROUP}}|{{.PROVIDER}}]: ${{.GROUP}}_{{.PROVIDER}}_ips"
+        echo "IPs for [{{.GROUP}}|{{.PROVIDER}}]: {{.IPs}}"
       - |
-        formatted_IPs=$(yq --null-input 'strenv({{.GROUP}}_{{.PROVIDER}}_ips) |
-          split(",") |
+        formatted_IPs=$(echo {{.IPs}} | yq '. | split(",") |
           .[] as $IPs ireduce({}; .[$IPs | . style="flow"] = "<remove-this>")')
 
         result=$(echo "$formatted_IPs" |
