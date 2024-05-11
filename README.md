@@ -109,11 +109,13 @@ infra_providers:
 ```
 task infra-deploy
 ```
-> You can pass in valid terraform apply args by specifying them after "--" and separated by space.
+- You can pass in valid terraform apply args by specifying them after "--" and separated by space.
 eg. `task infra-deploy -- -auto-approve` 
 
 > **Very Important**: No matter the approach you take to create your compute resources,
 you must **ensure they are visible to each other over a local or private network!**
+
+> If you get an error saying your `id_rsa` permissions are too open, you may want to changr it's permission using a comand like `chmod 600 ~/.ssh/id_rsa`.
 
 ## 2 Deployment<a id='2'></a>
 

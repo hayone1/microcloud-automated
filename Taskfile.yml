@@ -178,6 +178,10 @@ tasks:
         silent: true
 
   get-ips-provider:
+    desc: |-
+      Extracts, formats and saves the IPs created by
+      the provider into the hosts.yml file.
+    internal: true
     vars:
       # get from parent
       GROUP: '{{default "undefined" .GROUP}}'
@@ -206,6 +210,7 @@ tasks:
   
   # others
   get-ips-custom:
+    internal: true
     vars:
       # get from parent
       GROUP: '{{default "undefined" .GROUP}}'
@@ -277,13 +282,15 @@ tasks:
       GROUP: '{{index .MATCH 0}}'
     cmds:
       - |-
-        ansible-playbook --limit {{.GROUP}} --tags {{.INIT_TAGS}}\
+        ansible-playbook --limit {{.GROUP}} --tags {{.INIT_TAGS}} \
           --list-tasks --list-hosts {{.MAIN_PLAYBOOK}}
   init-*:
     vars:
       GROUP: '{{index .MATCH 0}}'
     cmds:
-      - ansible-playbook --limit {{.GROUP}} --tags {{.INIT_TAGS}}{{.MAIN_PLAYBOOK}}
+      - |
+        ansible-playbook --limit {{.GROUP}} --tags {{.INIT_TAGS}} \
+          {{.MAIN_PLAYBOOK}}
   deploy-all-*:
     vars:
       GROUP: '{{index .MATCH 0}}'

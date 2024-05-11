@@ -2,3 +2,10 @@
 # your environments, eg. dev, test, uat, sit, prod etc.
 groups:
   - dev
+
+# dummy interface that should be created
+#  for microcloud to use
+dummy_interface: eth9
+dummy_mac_prefix: '52:54:00'
+# location where packages will be installed
+package_dir: /usr/bin

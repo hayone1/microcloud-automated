@@ -1,9 +1,17 @@
 ---
 - hosts: all
+  become: true
+  gather_facts: true
+  # tasks:
+  #   - name: Gather the package facts
+  #     package_facts:
+  #       manager: auto
+  #     tags: [prerequisite, install]
   roles:
-    - microcloud-prerequisites
-    - microcloud-install
- 
+    - role: microcloud-prerequisites
+      tags: [prerequisite]
+    - role: microcloud-install
+      tags: [install]
 # Associate further roles to servers in specific group in this file...
 
 # ...

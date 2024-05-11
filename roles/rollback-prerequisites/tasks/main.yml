@@ -4,16 +4,6 @@
 - name: Gather the package facts
   package_facts:
     manager: auto
-# - name: Print the package facts
-#   ansible.builtin.debug:
-#     var: ansible_facts.packages
-#   # tags: ["prerequisite"]
-# - name: Show interface
-#   debug:
-#     msg: "{{ ansible_eth9 }}"
-# - name: Show interfaces
-#   debug:
-#     msg: "{{ ansible_interfaces }}"
 
 - name: Update package lists
   apt: update_cache=yes
@@ -53,37 +43,18 @@
   # tags: ["prerequisite"]
 
 - name: Create dummy interface {{ dummy_interface }}
-  when: 
-    - "dummy_interface not in ansible_interfaces"
   command: ip link add {{ dummy_interface }} type dummy
   args:
     creates: /sys/class/net/{{ dummy_interface }}
   # tags: ["prerequisite"]
 
-- name: Random MAC given a prefix
-  when: 
-    - "dummy_interface not in ansible_interfaces"
-  debug:
-    msg: "{{ dummy_mac_prefix | community.general.random_mac }}"
-  register: random_mac_address
-
-- name: Assign random MAC address to {{ dummy_interface }}
-  when: 
-    - "dummy_interface not in ansible_interfaces"
-  command: |-
-    ip link set dev {{ dummy_interface }} address {{ random_mac_address.msg }}
-  # tags: ["prerequisite"]
-
-
-- name: Bring {{ dummy_interface }} interface up
-  when: 
-    - "vars['ansible_' + dummy_interface].active != true"
-  command: ip link set dev {{ dummy_interface }} up
+- name: Delete {{ dummy_interface }}
+  command: ip link delete {{ dummy_interface }}
   # tags: ["prerequisite"]
 
 - name: Show interface {{ dummy_interface }} information (for informational purposes only)
   debug:
     msg: |-
-      f"Interface {{ dummy_interface }} is active: {{ vars['ansible_' + dummy_interface].active }}"
+      f"Interface {{ dummy_interface }} details: {{ ansible_{dummy_interface} }}"
     
   # tags: ["prerequisite"]
