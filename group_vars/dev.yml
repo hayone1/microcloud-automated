@@ -7,11 +7,9 @@ ansible_user: root
 # mandatory
 ansible_ssh_private_key_file: ~/.ssh/id_rsa
 ansible_ssh_public_key_file: ~/.ssh/id_rsa.pub
-# where required, the name of the ssh key
-# configured on the cloud provider
-# ssh_key_name: root_ssh
-# you only need to set the regions that you're
-# interested in
+
+# general prefix that will be used to mae things
+prefix: micro
 
 # supported cloud providers are
 # |digital_ocean|
@@ -25,16 +23,28 @@ infra_providers:
     # hosts:
     #   do1.exammple.com:
     #   do2.example.com:
-    # custom, nano, micro, small, medium, large, xlarge, 2xlarge
-    size: custom
     # number of servers to be provisioned
     quantity: 3
+    # custom, nano, micro, small, medium, large, xlarge, 2xlarge
+    size: custom
     # see valid digital ocean regions, os
     # and sizes here https://slugs.do-api.dev/
     region: "nyc3"
     os: ubuntu-22-04-x64
     # valid only if size is set to custom
-    custom_size: s-1vcpu-1gb
+    # You can have only 1 size item in the array which
+    # will be applied to all the servers.
+    # Or you must have as many size items as the quantity
+    # so that each size item is applied to each server
+    # eg. 
+    # quantity: 4
+    # custom_size: # notice that theree are 4 sizes
+    #   - s-1vcpu-1gb
+    #   - s-1vcpu-512mb-10gb
+    #   - s-1vcpu-1gb-amd
+    #   - s-1vcpu-2gb
+    custom_size: ['s-1vcpu-1gb']
+
 
 
 # # weather or not to load balance the servers

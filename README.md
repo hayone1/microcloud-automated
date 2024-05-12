@@ -13,13 +13,12 @@ Download (clone) or fork this repository.
 The major places of interest for customization will be in the [group_vars](group_vars/) folder.
 
 ### 1.1 Pre-requisites
-- [yq](https://github.com/mikefarah/yq/#install)
+- [yq 4.x](https://github.com/mikefarah/yq/#install)
 - [jq](https://jqlang.github.io/jq/download/)
 - [terraform](https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli)
 - [ansible](https://docs.ansible.com/ansible/latest/installation_guide/intro_installation.html)
 - [taskfile](https://taskfile.dev/installation/)
 
-To-Do: link to infra folder
 ### 1.2 Infra
 To setup microcloud you will need to have compute and network resources. This could be from a cloud provider or your private servers.
 
@@ -50,7 +49,7 @@ infra_providers:
 ```
 > Currently supported cloud providers are: `digital_ocean`.
 
-- If using a supported cloud provider, you can specify the `size`, `quantity:` and `region:` under the cloud provider's field.
+- If using a supported cloud provider, you can specify the `size`, `quantity:` and `region:` and more under the cloud provider's field.
 eg.
 ``` yaml
 infra_providers:
@@ -65,16 +64,23 @@ infra_providers:
     # custom, nano, micro, small, medium, large, xlarge, 2xlarge
     size: custom
     # valid only if size is set to custom
-    custom_size: t2.micro
+    custom_size: ["t2.micro"]
     # number of servers to be provisioned
     quantity: 3
     # see valid regions here https://slugs.do-api.dev/
     region: "nyc3"
 ```
+- If you specify `size: custom` in a provider, you must declear the  `custom_size:` list.
+It's best to either make the `custom_size:` list have only one entry or entries equal to
+`quantity:`.
+> If your `custom_size:` list length is less than the `quantity:` value, then the remaining
+servers will be assigned the size of the last entry in your `custom_size:` list.
+This gives room for some interesting customizations on the size options you may want to configure.
 
-- If you have already setup your compute by yourself or used a provivder that is not supported, then you'll need to specify the `hosts` alone.
+- If you have already setup your compute by yourself or used a provivder 
+that is not yet supported, then you'd only need to specify the `hosts:` field.
 
-  This is essentially ansible hosts config so you can input any valid ansible hosts value. See [here](https://docs.ansible.com/ansible/latest/inventory_guide/intro_inventory.html).
+  This is essentially ansible hosts config so you can put any valid ansible hosts value. See [examples](https://docs.ansible.com/ansible/latest/inventory_guide/intro_inventory.html).
 ``` yaml
 infra_providers:
   self_hosted:
@@ -118,6 +124,33 @@ you must **ensure they are visible to each other over a local or private network
 > If you get an error saying your `id_rsa` permissions are too open, you may want to changr it's permission using a comand like `chmod 600 ~/.ssh/id_rsa`.
 
 ## 2 Deployment<a id='2'></a>
+- Open a terminal in the root of this project.
+- To deploy microcloud for a specific environment/group,
+you'll can to run commands in the below formats:
+```shell
+task infra-create-<group>
+task run-deploy-init-<group>
+task run-deploy-install-<group>
+```
+eg.
+``` shell
+task infra-create-dev
+task run-deploy-init-dev
+task run-deploy-install-dev
+```
+- To deploy microcloud on all configured eenvironments/groups, simply run the below:
+``` shell
+task infra-create-all
+task run-deploy-init-all
+task run-deploy-install-all
+```
+- If you want to preview the list of tasks that will be run in the microcloud
+installation process(excluding infra provisioning) and the hosts that will be affected,
+you can run a command in this format: `task list-deploy-init-<group> && task task list-deploy-install-<group>`.
+eg.
+``` bash
+task list-deploy-init-all && task task list-deploy-install-all
+```
 
 ## 3 Maintainers<a id='3'></a>
 

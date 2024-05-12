@@ -7,9 +7,13 @@
   #     package_facts:
   #       manager: auto
   #     tags: [prerequisite, install]
+
+  # the tags are very important as they might
+  # be specified by the user when running the
+  # taskfile eg. task "list-init-dev" or task run-install-dev 
   roles:
     - role: microcloud-prerequisites
-      tags: [prerequisite]
+      tags: [init]
     - role: microcloud-install
       tags: [install]
 # Associate further roles to servers in specific group in this file...

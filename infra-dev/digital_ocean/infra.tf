@@ -21,11 +21,11 @@ resource "digitalocean_ssh_key" "terraform_ssh" {
 }
 
 resource "digitalocean_droplet" "microcloud-droplet" {
-  count     = local.group_config.infra_providers[local.folder_name].quantity
-  image     = local.group_config.infra_providers[local.folder_name].os
+  count     = local.provider_config.quantity
+  image     = local.provider_config.os
   name      = "${local.prefix}-droplet-${count.index}"
-  region    = local.group_config.infra_providers[local.folder_name].region
-  size      = "${local.selected_server_size}"
+  region    = local.provider_config.region
+  size      = local.selected_server_size[count.index]
   ssh_keys  = [digitalocean_ssh_key.terraform_ssh.fingerprint]
   # ssh_keys  = [digitalocean_ssh_key.terraform_ssh.fingerprint]
 

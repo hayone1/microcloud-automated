@@ -1,37 +1,40 @@
 ---
-#
-# Tasks to be applied to some servers
-#
+- name: Gather the package facts
+  package_facts:
+    manager: auto
 
-# Add tasks for a specific role to this playbook...
+- name: Refresh all snaps
+  snap:
+    state: refreshed
 
-- name: Install lxd snap (including edge channels)
+- name: Install LXD snap (channel - {{lxd_channel}})
+  when: "'lxd' not in ansible_facts.packages"
   snap:
     name: lxd
-    channel: "+"
-    state: present
-  tags: ["install"]
+    channel: '{{lxd_channel}}'
+    classic: no  # Avoid classic confinement (recommended)
 
-- name: Install microceph snap from quincy/stable channel (including edge)
+- name: Install Microceph snap (channel - '{{microceph_channel}}')
+  when: "'microceph' not in ansible_facts.packages"
   snap:
     name: microceph
-    channel: quiney/stable
-    state: present
-    classic: true  # Required for channels other than the default
-  tags: ["install"]
+    channel: '{{microceph_channel}}'
+    classic: no
 
-- name: Install microovn snap from 22.03/stable channel (including edge)
+- name: Install MicroOVN snap (channel - '{{microovn_channel}}')
+  when: "'microovn' not in ansible_facts.packages"
   snap:
     name: microovn
-    channel: 22.03/stable
-    state: present
-    classic: true  # Required for channels other than the default
-  tags: ["install"]
+    channel: '{{microovn_channel}}'
+    classic: no
 
-- name: Install microcloud snap from latest/stable channel (including edge)
+- name: Install Microcloud snap (channel - '{{microcloud_channel}}')
+  when: "'microcloud' not in ansible_facts.packages"
   snap:
     name: microcloud
-    channel: latest/stable
-    state: present
-    classic: true  # Required for channels other than the default
-  tags: ["install"]
+    channel: '{{microcloud_channel}}'
+    classic: no
+
+- name: Initialize microcloud (only on first host)
+  when: inventory_hostname == ansible_play_hosts[0]
+  command: echo to-do

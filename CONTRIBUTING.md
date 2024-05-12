@@ -17,7 +17,7 @@ accepted.
 ## Environment Setup
 
 ### Prerequisites
-- [yq](https://github.com/mikefarah/yq/#install)
+- [yq 4.x](https://github.com/mikefarah/yq/#install)
 - [jq](https://jqlang.github.io/jq/download/)
 - [terraform](https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli)
 - [ansible](https://docs.ansible.com/ansible/latest/installation_guide/intro_installation.html)
@@ -41,7 +41,7 @@ The goals are to:
 
 ### Useful Links
 
-| Month    |
+| Link    |
 | -------- |
 | https://canonical-microcloud.readthedocs-hosted.com/en/latest/tutorial/get_started/  |
 | https://developer.hashicorp.com/terraform/tutorials  |

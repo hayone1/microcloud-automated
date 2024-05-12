@@ -7,6 +7,7 @@ env:
 
 vars:
   INIT_TAGS: prerequisite
+  INSTALL_TAGS: install
   MAIN_PLAYBOOK: deploy-microcloud.yml
   INFRA_TEMPLATE: ./infra-template
 
@@ -87,23 +88,24 @@ tasks:
       - for: { var: MY_VAR, split: '\n' }
         cmd: echo {{.ITEM}}
 
-  infra-deploy:
+  infra-create-all:
     vars:
       GROUPS:
         sh: yq '.groups | join(" ")' "./group_vars/all.yml"
     cmds:
       - for: { var: GROUPS }
-        task: deploy-group-infra
-        vars:
-          GROUP: '{{.ITEM}}'
+        task: run-infra-create-{{.ITEM}}
+        # vars:
+        #   GROUP: '{{.ITEM}}'
         # silent: true
 
-  deploy-group-infra:
+  infra-create-*:
     desc: creates infra resources from the {{.INFRA_TEMPLATE}} and provided values.
-    internal: true
+    # internal: true
     silent: true
     vars:
-      GROUP: '{{default "invalid" .GROUP}}'
+      GROUP: '{{index .MATCH 0}}'
+      # GROUP: '{{default "invalid" .GROUP}}'
       PROVIDERS:
         sh: yq '.infra_providers | keys | join(" ")' "./group_vars/{{.GROUP}}.yml"
     cmds:
@@ -230,27 +232,28 @@ tasks:
   ############# Deploy Infra #############
 
   ############# Destroy Infra #############
-  infra-destroy:
+  infra-destroy-all:
     vars:
       GROUPS:
         sh: yq '.groups | join(" ")' "./group_vars/all.yml"
     cmds:
       - for: { var: GROUPS }
-        task: destroy-group-infra
-        vars:
-          GROUP: '{{.ITEM}}'
+        task: infra-destroy-{{.ITEM}}
+        # vars:
+        #   GROUP: '{{.ITEM}}'
       - for: { var: GROUPS }
         cmd: yq --inplace 'del(.{{.ITEM}})' hosts.yml
       - for: { var: GROUPS }
         cmd: rm -rf infra-{{.ITEM}}
         # silent: true
   
-  destroy-group-infra:
+  infra-destroy-*:
     desc: destroys the infra resources created.
-    internal: true
+    # internal: true
     # silent: true
     vars:
-      GROUP: '{{default "invalid" .GROUP}}'
+      GROUP: '{{index .MATCH 0}}'
+      # GROUP: '{{default "invalid" .GROUP}}'
       PROVIDERS:
         sh: yq '.infra_providers | keys | join(" ")' "./group_vars/{{.GROUP}}.yml"
     dotenv: ['./group_vars/{{.GROUP}}.env', './group_vars/.env', '.env']
@@ -269,30 +272,36 @@ tasks:
               -var "provider_token=${DO_PAT}" {{.CLI_ARGS}}
           fi
         silent: true
+  
   ############# Destroy Infra #############
   # example usage task list-all-dev
   # where dev will be the group
-  list-all-*:
+  list-deploy-*-*: 
     vars:
-      GROUP: '{{index .MATCH 0}}'
-    cmds:
-      - ansible-playbook --limit {{.GROUP}} --list-tasks --list-hosts {{.MAIN_PLAYBOOK}}
-  list-init-*: 
-    vars:
-      GROUP: '{{index .MATCH 0}}'
+      ACTION: '{{index .MATCH 0}}'
+      GROUP: '{{index .MATCH 1}}'
     cmds:
       - |-
-        ansible-playbook --limit {{.GROUP}} --tags {{.INIT_TAGS}} \
-          --list-tasks --list-hosts {{.MAIN_PLAYBOOK}}
-  init-*:
+        ansible-playbook --limit {{.GROUP}} --tags {{.ACTION}} \
+          --list-tasks --list-hosts {{.MAIN_PLAYBOOK}} {{.CLI_ARGS}}
+  run-deploy-*-*:
     vars:
-      GROUP: '{{index .MATCH 0}}'
+      ACTION: '{{index .MATCH 0}}'
+      GROUP: '{{index .MATCH 1}}'
     cmds:
       - |
-        ansible-playbook --limit {{.GROUP}} --tags {{.INIT_TAGS}} \
-          {{.MAIN_PLAYBOOK}}
-  deploy-all-*:
-    vars:
-      GROUP: '{{index .MATCH 0}}'
-    cmds:
-      - ansible-playbook --limit {{.GROUP}} {{.MAIN_PLAYBOOK}}
+        ansible-playbook --limit {{.GROUP}} --tags {{.ACTION}} \
+          {{.MAIN_PLAYBOOK}} {{.CLI_ARGS}}
+
+  # unnedded for now. Might be required if the command
+  # to create the microcloud becomes too long or complex
+  # list-microcloud-deploy-*:
+  #   vars:
+  #     GROUP: '{{index .MATCH 0}}'
+  #   cmds:
+  #     - ansible-playbook --limit {{.GROUP}} --list-tasks --list-hosts {{.MAIN_PLAYBOOK}}
+  # microcloud-deploy-*:
+  #   vars:
+  #     GROUP: '{{index .MATCH 0}}'
+  #   cmds:
+  #     - ansible-playbook --limit {{.GROUP}} {{.MAIN_PLAYBOOK}}
