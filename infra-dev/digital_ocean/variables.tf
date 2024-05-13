@@ -19,14 +19,26 @@ locals {
 
 locals {
 
-  # give each server's size it's own indexed entry from the cusom_size list
-  # else set all sizes to the first item if the quantity doesnt match the cusom_size list length
-  custom_size_map = length(local.provider_config.custom_size) == local.provider_config.quantity ? [
-    for i in range(
-      0, local.provider_config.quantity) : local.provider_config.custom_size[i]
-  ] : [
-    for i in range(
-      0, local.provider_config.quantity) : local.provider_config.custom_size[0]
+  # assign server size from custom_size list
+  # If custom_size list is smaller than server quantity,
+  # then all extra servers will take the size of the last item in the custom_size list
+  custom_size_map = [
+    for i in range(0, local.provider_config.quantity) :
+        local.provider_config.custom_size[
+          min(max(0,i), length(local.provider_config.custom_size) - 1)
+        ] ? local.provider_config.custom_size != null : ""
+  ]
+  local_volume_map = [
+    for i in range(0, local.provider_config.quantity) :
+        local.provider_config.local_volume_sizes[
+          min(max(0,i), length(local.provider_config.local_volume_sizes) - 1)
+        ] ? local.provider_config.local_volume_sizes != null : 0
+  ]
+  ceph_volume_map = [
+    for i in range(0, local.provider_config.quantity) :
+        local.provider_config.ceph_volume_sizes[
+          min(max(0,i), length(local.provider_config.ceph_volume_sizes) - 1)
+        ]? local.provider_config.ceph_volume_sizes != null : 0
   ]
 }
 

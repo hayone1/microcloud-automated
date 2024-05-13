@@ -59,8 +59,8 @@ infra_providers:
     # as the quantity you have specified
     # it must be an integer (represents Gigabyte)
     # [optional|default:[0]]
-    local_volume_sizes: [5]
-    ceph_volume_sizes: [5]
+    # local_volume_sizes: [5]
+    # ceph_volume_sizes: [5]
 
 
 

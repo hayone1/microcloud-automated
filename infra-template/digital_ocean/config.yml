@@ -14,5 +14,5 @@ required_env:
 get-ips: |
   yq '.resources[] |
     select(.type == "digitalocean_droplet") |
-    [.instances[].attributes.ipv4_address] |
-    join(",")'
+    .instances[].attributes |
+    [pick(["ipv4_address","ipv4_address_private"])]'

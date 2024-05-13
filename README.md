@@ -38,7 +38,8 @@ uat.yml
 dev.env
 uat.env
 ```
-- In each group/environment specific file, specify the `ansible_user:`, `ansible_ssh_public_key_file:`, `ansible_ssh_private_key_file:` and `infra_provider` you are interested in deploying compute to. You can deploy arbitrary values or one of the supported cloud providers of this project.
+- In each group/environment specific file, specify the `group_name`, `ansible_user:`, `ansible_ssh_public_key_file:`, `ansible_ssh_private_key_file:` and `infra_providers` you are interested in deploying compute to.
+For `infra_providers` You can use arbitrary values or one of the supported cloud providers of this project.
 
 eg.
 ``` yaml
@@ -49,7 +50,7 @@ infra_providers:
 ```
 > Currently supported cloud providers are: `digital_ocean`.
 
-- If using a supported cloud provider, you can specify the `size`, `quantity:` and `region:` and more under the cloud provider's field.
+- If using a supported cloud provider, you can specify the `size`, `quantity:` and `region:`, `cephfs_volume_size`, `ceph_volume_size` and more under the cloud provider's field.
 eg.
 ``` yaml
 infra_providers:
@@ -84,16 +85,27 @@ that is not yet supported, then you'd only need to specify the `hosts:` field.
 ``` yaml
 infra_providers:
   self_hosted:
-    hosts:  # only host field will be used
+    hosts:  # only host field will be used if specified
+      # ipv4_address_private should be specified also
+      10.1.1.0: # public IP
+        ipv4_address_private: "192.168.20.50"
+      # where ipv4_address_private is not specified like the below,
+      # the IP key(s) will be considered for both public
+      # and private IP use
+      10.1.1.1: # public & private IP
+
+      # In this case, you cannot speecify ipv4_address_private using
+      # the ansible range syntax so all ips in this range
+      # are considered as public and private
       www[01:50].example.com:
-      10.1.1.0:
-      10.1.1.1:
+      
       host.example.com:
+        ipv4_address_private: "192.168.30.51"
         http_port: 80
         maxRequestsPerChild: 808
     quantity: 3 # has no effect
 ```
-> Important: This project is currently only guarranteed to work on **ubuntu** >= 22 OS and not otherwise.
+> Important: This project is currently only tested on **ubuntu** 22.04 LTS..
 
 - You can also have multiple infra_providers.
 eg.
@@ -124,7 +136,9 @@ you must **ensure they are visible to each other over a local or private network
 > If you get an error saying your `id_rsa` permissions are too open, you may want to changr it's permission using a comand like `chmod 600 ~/.ssh/id_rsa`.
 
 ## 2 Deployment<a id='2'></a>
-- Open a terminal in the root of this project.
+- Open a terminal in the root of this project and ensure you
+have the task package installed.
+- To get the list of available tasks you can run `task --list`
 - To deploy microcloud for a specific environment/group,
 you'll can to run commands in the below formats:
 ```shell
@@ -138,7 +152,7 @@ task infra-create-dev
 task run-deploy-init-dev
 task run-deploy-install-dev
 ```
-- To deploy microcloud on all configured eenvironments/groups, simply run the below:
+- To deploy microcloud on all configured environments/groups, simply run the below:
 ``` shell
 task infra-create-all
 task run-deploy-init-all
@@ -151,8 +165,43 @@ eg.
 ``` bash
 task list-deploy-init-all && task task list-deploy-install-all
 ```
+- If there is a failure after some resources have been created, you can fix
+whatever caused the failure and run the below command formats:
+```shell
+task infra-refresh-<group>
+task run-deploy-init-<group>
+task run-deploy-install-<group>
+```
+> if you don't use the `-- -auto-approve` argument, you will receive some conformation prompts.
+- After infra setup, if you want to see the list of IPs in a summarized form
+simply run your `task infra-create-<group>` command again.
 
-## 3 Maintainers<a id='3'></a>
+- To rollback or destroy the deployments, simply run commands of the below format: 
+``` bash
+task destroy-infra-<group>
+task destroy-microcloud-<group>
+```
+eg.
+``` bash
+task destroy-infra-all
+task destroy-microcloud-all
+```
+
+## 3 Extra Configuration<a id='3'></a>
+
+### 3.1 Preseed
+microcloud initialization supports a non interactive setup using a preseed.
+See [example](https://canonical-microcloud.readthedocs-hosted.com/en/latest/how-to/initialise/#howto-initialise-preseed).
+
+In this project, you can configure `ovn` and `storage` (not systems.storage)
+on any of your group vars. You however cannot directly configure `systems`.
+
+here is also no need to manually configure `lookup_subnet`. Simply specify the
+`lookup_subnet_mask` (eg /24) and the subnet will be automatically generated using
+the private ip of one of the servers
+
+> Tip: Your lookup_subnet_mask determines how wide microcloud will search when looking
+for machines to add to the cluster.
 
 ## 4 Community<a id='4'></a>
 
@@ -166,10 +215,10 @@ task list-deploy-init-all && task task list-deploy-install-all
       - vagrant
     - Add steps to actually provision microcloud cluster.
 
-## Maintainers
+## 5 Maintainers<a id='5'></a>
 - Boluwatife @hayone1
 - Deborah @Debby77
 
-## Copyright and license
+## 6 Copyright and license<a id='6'></a>
 
 This project is released under the [GNU GPLv3](LICENSE)

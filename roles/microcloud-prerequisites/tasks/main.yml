@@ -1,89 +1,136 @@
 ---
 # Add further tasks for the common role (applied to all servers) to this playbook...
 
-- name: Gather the package facts
-  package_facts:
-    manager: auto
-# - name: Print the package facts
-#   ansible.builtin.debug:
-#     var: ansible_facts.packages
+# - name: Gather the package facts
+#   package_facts:
+#     manager: auto
+# # - name: Print the package facts
+# #   ansible.builtin.debug:
+# #     var: ansible_facts.packages
+# #   # tags: ["prerequisite"]
+# # - name: Show interface
+# #   debug:
+# #     msg: "{{ ansible_eth9 }}"
+# # - name: Show interfaces
+# #   debug:
+# #     msg: "{{ ansible_interfaces }}"
+
+# - name: Update package lists
+#   apt: update_cache=yes
 #   # tags: ["prerequisite"]
-# - name: Show interface
+
+# - name: Install snapd package
+#   when: "'snapd' not in ansible_facts.packages"
+#   apt:
+#     name: snapd
+#     state: present
+#   # tags: ["prerequisite"]
+
+# - name: Install core snap
+#   when: "'snapd' not in ansible_facts.packages"
+#   snap:
+#     name: core
+#     state: present
+#   # tags: ["prerequisite"]
+
+# - name: Install kmod package
+#   when: "'kmod' not in ansible_facts.packages"
+#   apt:
+#     name: kmod
+#     state: present
+#   # tags: ["prerequisite"]
+
+# - name: Install macchanger package
+#   when: "'macchanger' not in ansible_facts.packages"
+#   apt:
+#     name: macchanger
+#     state: present
+#   # tags: ["prerequisite"]
+
+# - name: Load dummy kernel module
+#   modprobe:
+#     name: dummy
+#   # tags: ["prerequisite"]
+
+# - name: Create dummy interface {{ ovn_uplink_interface }}
+#   when: 
+#     - "ovn_uplink_interface not in ansible_interfaces"
+#   command: ip link add {{ ovn_uplink_interface }} type dummy
+#   args:
+#     creates: /sys/class/net/{{ ovn_uplink_interface }}
+#   # tags: ["prerequisite"]
+
+# - name: Random MAC given a prefix
+#   when: 
+#     - "ovn_uplink_interface not in ansible_interfaces"
 #   debug:
-#     msg: "{{ ansible_eth9 }}"
-# - name: Show interfaces
+#     msg: "{{ ovn_uplink_mac_prefix | community.general.random_mac }}"
+#   register: random_mac_address
+
+# - name: Assign random MAC address to {{ ovn_uplink_interface }}
+#   when: 
+#     - "ovn_uplink_interface not in ansible_interfaces"
+#   command: |-
+#     ip link set dev {{ ovn_uplink_interface }} address {{ random_mac_address.msg }}
+#   # tags: ["prerequisite"]
+
+
+# - name: Bring {{ ovn_uplink_interface }} interface up
+#   when: 
+#     - "vars['ansible_' + ovn_uplink_interface].active != true"
+#   command: ip link set dev {{ ovn_uplink_interface }} up
+#   # tags: ["prerequisite"]
+
+# - name: Show interface {{ ovn_uplink_interface }} information (for informational purposes only)
 #   debug:
-#     msg: "{{ ansible_interfaces }}"
+#     msg: |-
+#       f"Interface {{ ovn_uplink_interface }} is active: {{ vars['ansible_' + ovn_uplink_interface].active }}"
+#   # tags: ["prerequisite"]
 
-- name: Update package lists
-  apt: update_cache=yes
-  # tags: ["prerequisite"]
-
-- name: Install snapd package
-  when: "'snapd' not in ansible_facts.packages"
-  apt:
-    name: snapd
-    state: present
-  # tags: ["prerequisite"]
-
-- name: Install core snap
-  when: "'snapd' not in ansible_facts.packages"
-  snap:
-    name: core
-    state: present
-  # tags: ["prerequisite"]
-
-- name: Install kmod package
-  when: "'kmod' not in ansible_facts.packages"
-  apt:
-    name: kmod
-    state: present
-  # tags: ["prerequisite"]
-
-- name: Install macchanger package
-  when: "'macchanger' not in ansible_facts.packages"
-  apt:
-    name: macchanger
-    state: present
-  # tags: ["prerequisite"]
-
-- name: Load dummy kernel module
-  modprobe:
-    name: dummy
-  # tags: ["prerequisite"]
-
-- name: Create dummy interface {{ dummy_interface }}
-  when: 
-    - "dummy_interface not in ansible_interfaces"
-  command: ip link add {{ dummy_interface }} type dummy
-  args:
-    creates: /sys/class/net/{{ dummy_interface }}
-  # tags: ["prerequisite"]
-
-- name: Random MAC given a prefix
-  when: 
-    - "dummy_interface not in ansible_interfaces"
+- name: Set preseed file location
   debug:
-    msg: "{{ dummy_mac_prefix | community.general.random_mac }}"
-  register: random_mac_address
+    msg: infra-{{group_name}}/preseed.yml
+  register: preseed_file
 
-- name: Assign random MAC address to {{ dummy_interface }}
-  when: 
-    - "dummy_interface not in ansible_interfaces"
-  command: |-
-    ip link set dev {{ dummy_interface }} address {{ random_mac_address.msg }}
-  # tags: ["prerequisite"]
+- name: add lookup_subnet to preseed.yml using private ip and mask
+  delegate_to: localhost
+  run_once: true
+  shell: |-
+    touch {{preseed_file.msg}}
+    yq -i '.lookup_subnet = "{{ipv4_address_private}}{{lookup_subnet_mask}}"'\
+      {{preseed_file.msg}}
+  become: false
 
-
-- name: Bring {{ dummy_interface }} interface up
-  when: 
-    - "vars['ansible_' + dummy_interface].active != true"
-  command: ip link set dev {{ dummy_interface }} up
-  # tags: ["prerequisite"]
-
-- name: Show interface {{ dummy_interface }} information (for informational purposes only)
+- name: Get static hostname
+  run_once: true
   debug:
-    msg: |-
-      f"Interface {{ dummy_interface }} is active: {{ vars['ansible_' + dummy_interface].active }}"
+    msg: "{{ ansible_hostname }}"
+  register: current_remote
+
+- name: Set microcloud system config
+  delegate_to: localhost
+  shell: |-
+    yq -i '.systems = (.systems[] |
+        [select(.name != env(remote_host))] |
+          . += [{"name": env(remote_host),"ovn_uplink_interface": "{{ovn_uplink_interface}}"}])' \
+      {{preseed_file.msg}}
+  environment:
+    remote_host: "{{current_remote.msg}}"
+  become: false
+- name: Set ovn config
+  run_once: true
+  local_action: command yq -i --prettyPrint '.ovn = env(ovn)' {{preseed_file.msg}}
+  environment:
+    ovn: "{{ovn}}"
+  become: false
+- name: Set storage config
+  run_once: true
+  local_action: command yq -i --prettyPrint '.storage = env(storage)' {{preseed_file.msg}}
+  environment:
+    storage: "{{storage}}"
+  become: false
     
-  # tags: ["prerequisite"]
+
+
+
+    

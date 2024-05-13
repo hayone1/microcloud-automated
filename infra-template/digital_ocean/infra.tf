@@ -1,18 +1,3 @@
-# resource "tls_private_key" "global_key" {
-#   algorithm = "RSA"
-#   rsa_bits  = 2048
-# }
-# resource "local_sensitive_file" "ssh_private_key_pem" {
-#   filename        = "${path.module}/id_rsa"
-#   content         = tls_private_key.global_key.private_key_pem
-#   file_permission = "0600"
-# }
-
-# resource "local_file" "ssh_public_key_openssh" {
-#   filename = "${path.module}/id_rsa.pub"
-#   content  = tls_private_key.global_key.public_key_openssh
-# }
-
 # Temporary key pair used for SSH accesss
 resource "digitalocean_ssh_key" "terraform_ssh" {
   name       = "${local.prefix}-droplet-ssh-key"
@@ -20,13 +5,35 @@ resource "digitalocean_ssh_key" "terraform_ssh" {
   public_key = file(local.group_config.ansible_ssh_public_key_file)
 }
 
+resource "digitalocean_volume" "local-volume" {
+  count                   = local.provider_config.quantity
+  region                  = local.provider_config.region
+  name                    = "${local.prefix}localvolume${count.index}"
+  size                    = local.local_volume_map[count.index]
+  initial_filesystem_type = "ext4"
+  description             = "Volume to be used for microcloud storage."
+}
+resource "digitalocean_volume" "ceph-volume" {
+  count                     = local.provider_config.quantity
+  region                    = local.provider_config.region
+  name                      = "${local.prefix}cephvolume${count.index}"
+  size                      = local.ceph_volume_map[count.index]
+  initial_filesystem_type   = "ext4"
+  description               = "Volume to be used for microcloud storage."
+}
+
+
 resource "digitalocean_droplet" "microcloud-droplet" {
-  count     = local.provider_config.quantity
-  image     = local.provider_config.os
-  name      = "${local.prefix}-droplet-${count.index}"
-  region    = local.provider_config.region
-  size      = local.selected_server_size[count.index]
-  ssh_keys  = [digitalocean_ssh_key.terraform_ssh.fingerprint]
+  count       = local.provider_config.quantity
+  image       = local.provider_config.os
+  name        = "${local.prefix}-droplet-${count.index}"
+  region      = local.provider_config.region
+  size        = local.selected_server_size[count.index]
+  ssh_keys    = [digitalocean_ssh_key.terraform_ssh.fingerprint]
+  volume_ids  = [
+    digitalocean_volume.local-volume[count.index].id,
+    digitalocean_volume.ceph-volume[count.index].id
+  ]
   # ssh_keys  = [digitalocean_ssh_key.terraform_ssh.fingerprint]
 
   provisioner "remote-exec" {

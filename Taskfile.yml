@@ -89,25 +89,39 @@ tasks:
         cmd: echo {{.ITEM}}
 
   infra-create-all:
+    desc: creates all infra resources that has been defined.
     vars:
       GROUPS:
         sh: yq '.groups | join(" ")' "./group_vars/all.yml"
     cmds:
       - for: { var: GROUPS }
-        task: run-infra-create-{{.ITEM}}
+        task: infra-create-{{.ITEM}}
         # vars:
         #   GROUP: '{{.ITEM}}'
         # silent: true
 
-  infra-create-*:
-    desc: creates infra resources from the {{.INFRA_TEMPLATE}} and provided values.
+  infra-*-*:
+    desc: |-
+      creates infra resources using all infra providers defined in
+      the group yml. eg. task infra-create-dev or infra-update-dev
     # internal: true
     silent: true
     vars:
-      GROUP: '{{index .MATCH 0}}'
+      ACTION: '{{index .MATCH 0}}'
+      GROUP: '{{index .MATCH 1}}'
       # GROUP: '{{default "invalid" .GROUP}}'
       PROVIDERS:
         sh: yq '.infra_providers | keys | join(" ")' "./group_vars/{{.GROUP}}.yml"
+      UPDATE:
+        sh: |
+          if [ {{.ACTION}} == update ]; then
+            echo true
+          elif [ {{.ACTION}} == create ]; then
+            echo false
+          else
+            echo invalid
+          fi
+        
     cmds:
       # has not effect if no env var is needed.
       - for: { var: PROVIDERS }
@@ -132,16 +146,17 @@ tasks:
         vars:
           GROUP: '{{ .GROUP }}'
           PROVIDER: '{{ .ITEM }}'
-      # - for: { var: PROVIDERS }
-      #   cmd: echo "provider name is {{.ITEM}}"
+          UPDATE: '{{ .UPDATE }}'
+        silent: true
 
   deploy-provider-infra:
     desc: deploys the configured infra for the specified cloud provider.
     internal: true
-    silent: true
+    # silent: true
     vars:
       PROVIDER: '{{default "undefined" .PROVIDER}}'
       GROUP: '{{default "undefined" .GROUP}}'
+      UPDATE: '{{default "false" .UPDATE}}'
       # set the task to get ips based on if the cloud provider
       # is supported ot arbitrary
       GET_IP_TASK:
@@ -154,21 +169,24 @@ tasks:
     dotenv: ['./group_vars/{{.GROUP}}.env', './group_vars/.env', '.env']
     cmds:
       # condition: if the provider's folder has been created and the tfstate file does not exist yet
-      - echo "creating infra for provider - {{.PROVIDER}}"
+      - echo "creating infra for provider - {{.PROVIDER}} | refresh - {{.UPDATE}}"
       - |
-        if [ -d ./infra-{{.GROUP}}/{{.PROVIDER}} ] &&
-           [ ! -f ./infra-{{.GROUP}}/{{.PROVIDER}}/.terraform.lock.hcl ]; then
+        if [[ -d ./infra-{{.GROUP}}/{{.PROVIDER}} &&
+          ( (! -f ./infra-{{.GROUP}}/{{.PROVIDER}}/terraform.tfstate) ||
+            {{.UPDATE}} == true ) ]]; then
           terraform -chdir=./infra-{{.GROUP}}/{{.PROVIDER}} init
         fi
       - |
-        if [ -d ./infra-{{.GROUP}}/{{.PROVIDER}} ] &&
-           [ ! -f ./infra-{{.GROUP}}/{{.PROVIDER}}/terraform.tfstate ]; then
+        if [[ -d ./infra-{{.GROUP}}/{{.PROVIDER}} &&
+          ( (! -f ./infra-{{.GROUP}}/{{.PROVIDER}}/terraform.tfstate) ||
+            {{.UPDATE}} == true ) ]]; then
           terraform -chdir=./infra-{{.GROUP}}/{{.PROVIDER}} plan \
             -var "provider_token=${DO_PAT}"
         fi
       - |
-        if [ -d ./infra-{{.GROUP}}/{{.PROVIDER}} ] &&
-           [ ! -f ./infra-{{.GROUP}}/{{.PROVIDER}}/terraform.tfstate ]; then
+        if [[ -d ./infra-{{.GROUP}}/{{.PROVIDER}} &&
+          ( (! -f ./infra-{{.GROUP}}/{{.PROVIDER}}/terraform.tfstate) ||
+            {{.UPDATE}} == true ) ]]; then
           terraform -chdir=./infra-{{.GROUP}}/{{.PROVIDER}} apply \
             -var "provider_token=${DO_PAT}" {{.CLI_ARGS}}
         fi
@@ -193,20 +211,25 @@ tasks:
       IPs:
         sh: |-
           {{.GET_IP_COMMAND}} ./infra-{{.GROUP}}/{{.PROVIDER}}/terraform.tfstate
+    env:
+      IPs: '{{.IPs}}'
     cmds:
       - |
-        echo "IPs for [{{.GROUP}}|{{.PROVIDER}}]: {{.IPs}}"
+        echo "IPs for [{{.GROUP}}|{{.PROVIDER}}]:"
+        echo "$IPs"
       - |
-        formatted_IPs=$(echo {{.IPs}} | yq '. | split(",") |
-          .[] as $IPs ireduce({}; .[$IPs | . style="flow"] = "<remove-this>")')
+        formatted_IPs=$(echo "$IPs" |
+          yq '.[] as $ips ireduce({}; .[$ips | .ipv4_address | . style="flow"] =
+            {"ipv4_address_private": $ips | .ipv4_address_private})')
 
         result=$(echo "$formatted_IPs" |
-          yq eval-all 'select(fileIndex == 1) as $provider_hosts |
+          yq eval-all --inplace 'select(fileIndex == 1) as $provider_hosts |
               select(fileIndex == 0) |
-              .{{.GROUP}}.children.{{.PROVIDER}}.hosts = (.{{.GROUP}}.children.{{.PROVIDER}}.hosts * $provider_hosts |
+              .{{.GROUP}}.children.{{.PROVIDER}}.hosts =
+                (.{{.GROUP}}.children.{{.PROVIDER}}.hosts * $provider_hosts |
               sort_keys(..))' hosts.yml -)
 
-        echo "${result//" <remove-this>"/''}" > hosts.yml
+        # echo "${result//" <remove-this>"/''}" > hosts.yml
       - echo "✅️ hosts.yml updated successfully"
 
   
@@ -220,8 +243,11 @@ tasks:
     cmds:
     # 1 is the source(right), 0 is the destination(left)
     - | 
-      echo "IPs for [{{.GROUP}}|{{.PROVIDER}}]: \
-        $(yq '.infra_providers.{{.PROVIDER}}.hosts | keys | join(",")' ./group_vars/{{.GROUP}}.yml)"
+      echo "IPs for [{{.GROUP}}|{{.PROVIDER}}]:"
+      echo "$(yq -o=json '.infra_providers.{{.PROVIDER}}.hosts |
+        to_entries |
+        map({"ipv4_address": .key, "ipv4_address_private": .value.ipv4_address_private})' \
+        ./group_vars/{{.GROUP}}.yml)"
     - |
       yq --inplace eval-all '(select(fileIndex == 1) | .infra_providers.{{.PROVIDER}}.hosts) as $provider_hosts |
                     select(fileIndex == 0) |
@@ -232,7 +258,8 @@ tasks:
   ############# Deploy Infra #############
 
   ############# Destroy Infra #############
-  infra-destroy-all:
+  destroy-infra--all:
+    desc: Destroys all the infra resources created by this project.
     vars:
       GROUPS:
         sh: yq '.groups | join(" ")' "./group_vars/all.yml"
@@ -241,14 +268,12 @@ tasks:
         task: infra-destroy-{{.ITEM}}
         # vars:
         #   GROUP: '{{.ITEM}}'
-      - for: { var: GROUPS }
-        cmd: yq --inplace 'del(.{{.ITEM}})' hosts.yml
-      - for: { var: GROUPS }
-        cmd: rm -rf infra-{{.ITEM}}
         # silent: true
   
-  infra-destroy-*:
-    desc: destroys the infra resources created.
+  destroy-infra-*:
+    desc: |-
+      Destroys the infra resources created for a specific group/environment.
+      eg. task infra-destroy-dev
     # internal: true
     # silent: true
     vars:
@@ -272,11 +297,16 @@ tasks:
               -var "provider_token=${DO_PAT}" {{.CLI_ARGS}}
           fi
         silent: true
+      - yq --inplace 'del(.{{.GROUP}})' hosts.yml
+      - rm -rf infra-{{.GROUP}}
   
   ############# Destroy Infra #############
   # example usage task list-all-dev
   # where dev will be the group
   list-deploy-*-*: 
+    desc: |-
+      Lists the actions that will be taken to deploy microcloud on the
+      given infrastructure. eg. task list-deploy-init-all
     vars:
       ACTION: '{{index .MATCH 0}}'
       GROUP: '{{index .MATCH 1}}'
@@ -285,6 +315,9 @@ tasks:
         ansible-playbook --limit {{.GROUP}} --tags {{.ACTION}} \
           --list-tasks --list-hosts {{.MAIN_PLAYBOOK}} {{.CLI_ARGS}}
   run-deploy-*-*:
+    desc: |-
+      Runs the tasks required to deploy microcloud on the
+      given infrastructure. task run-deploy-init-all
     vars:
       ACTION: '{{index .MATCH 0}}'
       GROUP: '{{index .MATCH 1}}'
@@ -293,7 +326,12 @@ tasks:
         ansible-playbook --limit {{.GROUP}} --tags {{.ACTION}} \
           {{.MAIN_PLAYBOOK}} {{.CLI_ARGS}}
 
-  # unnedded for now. Might be required if the command
+  microcloud-destroy-*:
+    desc: |
+      Pulls down the microcloud deployment.
+    cmds:
+      - echo "Not Implement Yet"
+  # unneeded for now. Might be required if the command
   # to create the microcloud becomes too long or complex
   # list-microcloud-deploy-*:
   #   vars:

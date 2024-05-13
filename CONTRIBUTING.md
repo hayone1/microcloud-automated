@@ -36,7 +36,38 @@ The first place you would want to check is the (variables.tf)[variables.tf] file
 
 The goals are to:
 - provision infrastructure that are within the same subnet and/or are visible to eath other over a local/private network.
-- Write an appropriate command(see [config.yml sample](config.yml)) that can extract the IPs into a comma separated string.
+- Write an appropriate command(see [digital_ocean config.yml sample](infra-template/digital_ocean/config.yml)) that can extract the public and private IPs into a json or yaml array.
+ with the keys `ipv4_address` and `ipv4_address_private`.
+ 
+ eg. Valid Output can look like:
+
+``` yaml
+- ipv4_address: 64.224.46.104
+  ipv4_address_private: 10.118.0.4
+- ipv4_address: 134.132.12.63
+  ipv4_address_private: 10.118.0.3
+```
+or
+
+``` yaml
+- {"ipv4_address": "64.224.46.104", "ipv4_address_private": "10.118.0.4"}
+- {"ipv4_address": "134.132.12.63", "ipv4_address_private": "10.118.0.3"}
+```
+or
+``` json
+[
+  {
+    "ipv4_address": "64.224.46.104",
+    "ipv4_address_private": "10.118.0.4"
+  },
+  {
+    "ipv4_address": "134.132.12.63",
+    "ipv4_address_private": "10.118.0.3"
+  }
+]
+```
+
+
 
 
 ### Useful Links

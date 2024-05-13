@@ -36,5 +36,6 @@
     classic: no
 
 - name: Initialize microcloud (only on first host)
-  when: inventory_hostname == ansible_play_hosts[0]
+  # when: inventory_hostname == ansible_play_hosts[0]
+  delegate_to: '{{ansible_play_hosts[0]}}'
   command: echo to-do

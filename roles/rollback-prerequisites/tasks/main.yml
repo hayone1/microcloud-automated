@@ -42,19 +42,19 @@
     name: dummy
   # tags: ["prerequisite"]
 
-- name: Create dummy interface {{ dummy_interface }}
-  command: ip link add {{ dummy_interface }} type dummy
+- name: Create dummy interface {{ ovn_uplink_interface }}
+  command: ip link add {{ ovn_uplink_interface }} type dummy
   args:
-    creates: /sys/class/net/{{ dummy_interface }}
+    creates: /sys/class/net/{{ ovn_uplink_interface }}
   # tags: ["prerequisite"]
 
-- name: Delete {{ dummy_interface }}
-  command: ip link delete {{ dummy_interface }}
+- name: Delete {{ ovn_uplink_interface }}
+  command: ip link delete {{ ovn_uplink_interface }}
   # tags: ["prerequisite"]
 
-- name: Show interface {{ dummy_interface }} information (for informational purposes only)
+- name: Show interface {{ ovn_uplink_interface }} information (for informational purposes only)
   debug:
     msg: |-
-      f"Interface {{ dummy_interface }} details: {{ ansible_{dummy_interface} }}"
+      f"Interface {{ ovn_uplink_interface }} details: {{ ansible_{ovn_uplink_interface} }}"
     
   # tags: ["prerequisite"]
