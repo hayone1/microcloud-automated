@@ -6,7 +6,7 @@ resource "digitalocean_ssh_key" "terraform_ssh" {
 }
 
 resource "digitalocean_volume" "local-volume" {
-  count                   = local.provider_config.quantity
+  count                   = length(local.local_volume_map)
   region                  = local.provider_config.region
   name                    = "${local.prefix}localvolume${count.index}"
   size                    = local.local_volume_map[count.index]
@@ -14,7 +14,7 @@ resource "digitalocean_volume" "local-volume" {
   description             = "Volume to be used for microcloud storage."
 }
 resource "digitalocean_volume" "ceph-volume" {
-  count                     = local.provider_config.quantity
+  count                     = length(local.ceph_volume_map)
   region                    = local.provider_config.region
   name                      = "${local.prefix}cephvolume${count.index}"
   size                      = local.ceph_volume_map[count.index]
@@ -29,11 +29,22 @@ resource "digitalocean_droplet" "microcloud-droplet" {
   name        = "${local.prefix}-droplet-${count.index}"
   region      = local.provider_config.region
   size        = local.selected_server_size[count.index]
+  # private key
   ssh_keys    = [digitalocean_ssh_key.terraform_ssh.fingerprint]
-  volume_ids  = [
-    digitalocean_volume.local-volume[count.index].id,
-    digitalocean_volume.ceph-volume[count.index].id
-  ]
+  # set both local and ceph volume if created, or either of them or none
+  volume_ids  = (
+    length(digitalocean_volume.local-volume) > 0 && length(digitalocean_volume.ceph-volume) > 0 ?
+      [
+        digitalocean_volume.local-volume[count.index].id,
+        digitalocean_volume.ceph-volume[count.index].id
+      ]  : 
+      length(digitalocean_volume.local-volume) > 0 ?
+            [digitalocean_volume.local-volume[count.index].id] :
+      length(digitalocean_volume.ceph-volume) > 0 ?
+            [digitalocean_volume.ceph-volume[count.index].id] :
+      []
+  )
+  
   # ssh_keys  = [digitalocean_ssh_key.terraform_ssh.fingerprint]
 
   provisioner "remote-exec" {
@@ -57,6 +68,84 @@ resource "digitalocean_droplet" "microcloud-droplet" {
      
   }
 }
+
+resource "ssh_resource" "resource-data" {
+  
+  count       = length(digitalocean_volume.local-volume)
+  host        = digitalocean_droplet.microcloud-droplet[count.index].ipv4_address
+  user        = local.server_user
+  private_key = file(local.group_config.ansible_ssh_private_key_file)
+  when        = "create"
+  commands    = [
+    # used the name of the created volume resource to get the in-server name
+    <<EOF
+      path=$(df | awk '{print $1, $6}' | grep ${digitalocean_volume.local-volume[count.index].name} | awk '{print $1}') &&
+        index=$(echo -n ${digitalocean_volume.local-volume[count.index].name} | tail -c 1)  &&
+        hostname=$(hostname) &&
+        ipv4_address=$(hostname -I | awk '{print $1}') &&
+        ipv4_address_private=$(ip addr show | grep 'inet ' | grep -v '127.0.0.1' | tail -n 1 | awk '{print $2}') &&
+        echo -e "hostname: $hostname\nipv4_address: $ipv4_address\nipv4_address_private: $ipv4_address_private\nindex_key: $index\nlocal_volume_path: $name\n"
+    EOF
+  ]
+}
+# resource "ssh_resource" "local-volume-disk" {
+#   count       = length(digitalocean_volume.local-volume)
+#   host        = digitalocean_droplet.microcloud-droplet[count.index].ipv4_address
+#   user        = local.server_user
+#   private_key = file(local.group_config.ansible_ssh_private_key_file)
+#   when        = "create"
+#   commands    = [
+#     # used the name of the created volume resource to get the in-server name
+#     <<EOF
+#       path=$(df | awk '{print $1, $6}' | grep ${digitalocean_volume.local-volume[count.index].name} | awk '{print $1}') &&
+#         index=$(echo -n ${digitalocean_volume.local-volume[count.index].name} | tail -c 1)  &&
+#         hostname=$(hostname) &&
+#         ipv4_address=$(hostname -I | awk '{print $1}') &&
+#         ipv4_address_private=$(ip addr show | grep 'inet ' | grep -v '127.0.0.1' | tail -n 1 | awk '{print $2}') &&
+#         echo -e "hostname: $hostname\nipv4_address: $ipv4_address\nipv4_address_private: $ipv4_address_private\nindex_key: $index\nlocal_volume_path: $name\n"
+#     EOF
+#   ]
+# }
+# get host data directly from host, this offers a generic way of doing do
+# for any cloud provider
+resource "ssh_resource" "hosts-data" {
+  count       = length(digitalocean_volume.ceph-volume)
+  host        = digitalocean_droplet.microcloud-droplet[count.index].ipv4_address
+  user        = local.server_user
+  private_key = file(local.group_config.ansible_ssh_private_key_file)
+  # agent       = true
+  when        = "create"
+  commands    = [
+    <<EOF
+      local_volume_path=$(df | awk '{print $1, $6}' | grep ${try(digitalocean_volume.local-volume[count.index].name, "_none")} | awk '{print $1}') &&
+      ceph_volume_path=$(df | awk '{print $1, $6}' | grep ${try(digitalocean_volume.ceph-volume[count.index].name, "_none")} | awk '{print $1}') &&
+        index=$(echo -n ${digitalocean_volume.ceph-volume[count.index].name} | tail -c 1)  &&
+        hostname=$(hostname) &&
+        ipv4_address=$(hostname -I | awk '{print $1}') &&
+        ipv4_address_private=$(ip addr show | grep 'inet ' | grep -v '127.0.0.1' | tail -n 1 | awk '{print $2}') &&
+        echo -e "hostname: $hostname\nipv4_address: $ipv4_address\nipv4_address_private: $ipv4_address_private\nindex_key: $index\nlocal_volume_path: $local_volume_path\nceph_volume_path: $ceph_volume_path\n"
+    EOF
+  ]
+}
+
+output "ansible-hosts" {
+  value = {
+    # group the data by ipv4_address
+    for data in [
+      for host_data in ssh_resource.hosts-data :
+        try(yamldecode(host_data.result), {})
+    ] : data.ipv4_address => data
+
+  }
+}
+
+# output "ansible-hosts" {
+#   value = {
+#     for volume_datum in out :
+#       volume_datum.index_key => volume_datum
+#   }
+# }
+
 
 # resource "digitalocean_loadbalancer" "microcloud_lb" {
 #   name    = "${local.prefix}-lb"

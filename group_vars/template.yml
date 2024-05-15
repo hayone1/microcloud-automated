@@ -11,7 +11,7 @@ ansible_user: root
 ansible_ssh_private_key_file: ~/.ssh/id_rsa
 ansible_ssh_public_key_file: ~/.ssh/id_rsa.pub
 
-# general prefix that will be used to mae things
+# general prefix that will be used to anem things
 prefix: micro
 
 # supported cloud providers are
@@ -19,13 +19,31 @@ prefix: micro
 # you can also put arbitrary values
 infra_providers:
   self_hosted:
-    hosts:
-      64.18.0.0:
-        ipv4_address_private: "192.168.20.50"
-        # local_volume_path:
-        # ceph_volume_path:
+    hosts:  # only host field will be used if specified
+      # hostname and ipv4_address_private are manatory
+      10.1.1.0: # public IP
+        # local ip in subnet form
+        ipv4_address_private: "192.168.20.50/24" # [mandatory]
+        hostname: micro-droplet-0 # [mandatory]
+      # where ipv4_address_private is not specified like the below,
+      # the IP key(s) will be considered for both public
+      # and private IP use
       64.18.0.1:
-        ipv4_address_private: "192.168.20.51"
+        hostname: micro-ec-0
+        ipv4_address_private: "192.168.20.55/24"
+        # you can specify volume names (as seen from lsblk)
+        ceph_volume_path: /dev/sdb # for distributed storage
+        local_volume_path: /dev/sda # for local storage
+      host.example.com:
+        hostname: micro-vm-1
+        ipv4_address_private: "192.168.30.51/24"
+        # you can specify other variables as you wish
+        http_port: 80
+        maxRequestsPerChild: 808
+      # The below will not be supported because you will not be able to
+      # specify the hostname for it
+      # www[01:50].example.com:
+    quantity: 3 # has no effect
   digital_ocean:
     # hosts:
     #   do1.exammple.com:
@@ -49,7 +67,7 @@ infra_providers:
     #   - s-1vcpu-512mb-10gb
     #   - s-1vcpu-1gb-amd
     #   - s-1vcpu-2gb
-    # [optional|default:['s-1vcpu-1gb']]
+    # [optional]<mandatory if size: custom>
     custom_size: ['s-1vcpu-1gb'] # 
     # if the list is smaller than the quantity, then the remaining
     # servers will be sized using the last item in the list.
@@ -58,9 +76,10 @@ infra_providers:
     # the concept is similar to custom_size. Specify 1 or specify as much
     # as the quantity you have specified
     # it must be an integer (represents Gigabyte)
-    # [optional|default:[0]]
-    # local_volume_sizes: [5]
-    # ceph_volume_sizes: [5]
+    # [optional]
+    local_volume_sizes: [5]
+    # [optional]
+    ceph_volume_sizes: [5]
 
 
 

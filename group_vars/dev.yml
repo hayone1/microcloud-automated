@@ -6,12 +6,12 @@ ansible_ssh_host_key_checking: false
 # if file name is dev.yml, then group_name is dev
 group_name: dev
 # mandatory
-ansible_user: root
+ansible_user: orangepi
 # mandatory
 ansible_ssh_private_key_file: ~/.ssh/id_rsa
 ansible_ssh_public_key_file: ~/.ssh/id_rsa.pub
 
-# general prefix that will be used to mae things
+# general prefix that will be used to anem things
 prefix: micro
 
 # supported cloud providers are
@@ -19,51 +19,10 @@ prefix: micro
 # you can also put arbitrary values
 infra_providers:
   self_hosted:
-    hosts:
-      64.18.0.0:
-        ipv4_address_private: "192.168.20.50"
-        # local_volume_path:
-        # ceph_volume_path:
-      64.18.0.1:
-        ipv4_address_private: "192.168.20.51"
-  digital_ocean:
-    # hosts:
-    #   do1.exammple.com:
-    #   do2.example.com:
-    # number of servers to be provisioned
-    quantity: 3
-    # custom, nano, micro, small, medium, large, xlarge, 2xlarge
-    size: custom
-    # see valid digital ocean regions, os
-    # and sizes here https://slugs.do-api.dev/
-    region: "nyc3"
-    os: ubuntu-22-04-x64
-    # valid only if size is set to custom
-    # You can choose to have only 1 size item in the array which will be applied
-    # to all the servers. Or you can have as many size items as the quantity
-    # so that each size item is applied to each server
-    # eg. 
-    # quantity: 4
-    # custom_size: # notice that there are 4 sizes
-    #   - s-1vcpu-1gb
-    #   - s-1vcpu-512mb-10gb
-    #   - s-1vcpu-1gb-amd
-    #   - s-1vcpu-2gb
-    # [optional|default:['s-1vcpu-1gb']]
-    custom_size: ['s-1vcpu-1gb'] # 
-    # if the list is smaller than the quantity, then the remaining
-    # servers will be sized using the last item in the list.
-
-    # This is mandatory and will be used to configure the volumes for microcloud
-    # the concept is similar to custom_size. Specify 1 or specify as much
-    # as the quantity you have specified
-    # it must be an integer (represents Gigabyte)
-    # [optional|default:[0]]
-    local_volume_sizes: [5]
-    ceph_volume_sizes: [5]
-
-
-
-# # weather or not to load balance the servers
-# deploy_loadbalancer: true
-# loadbalancer_dns: nicest-domains.com
+    hosts:  # only host field will be used if specified
+      192.168.0.145: # public IP
+        ipv4_address_private: "192.168.0.145/24" # [mandatory]
+        hostname: orangepi4-lts
+      192.168.0.147: # public IP
+        ipv4_address_private: "192.168.0.147/24" # [mandatory]
+        hostname: orangepi800

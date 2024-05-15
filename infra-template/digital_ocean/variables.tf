@@ -24,34 +24,31 @@ locals {
   # then all extra servers will take the size of the last item in the custom_size list
   # if custom_size list is not defined or it is empty, then create a list of default sizes
   custom_size_map = (
-    try(local.provider_config.custom_size, false) ?
+    try(length(local.provider_config.custom_size) > 0, false) ?
       [
         for i in range(0, local.provider_config.quantity) :
-          length(local.provider_config.custom_size) > 0 ?
-              local.provider_config.custom_size[
-                min(max(0,i), length(local.provider_config.custom_size) - 1)
-              ] : "s-1vcpu-1gb"
+          local.provider_config.custom_size[
+            min(max(0,i), length(local.provider_config.custom_size) - 1)
+          ]
       ] : []
   )
   local_volume_map = (
-    try(local.provider_config.local_volume_sizes, false) ?
+    try(length(local.provider_config.local_volume_sizes) > 0, false) ?
       [
         for i in range(0, local.provider_config.quantity) :
-          length(local.provider_config.local_volume_sizes) > 0 ?
-              local.provider_config.local_volume_sizes[
-                min(max(0,i), length(local.provider_config.local_volume_sizes) - 1)
-              ] : 0
+          local.provider_config.local_volume_sizes[
+            min(max(0,i), length(local.provider_config.local_volume_sizes) - 1)
+          ]
       ] : []
   )
   
   ceph_volume_map = (
-    try(local.provider_config.ceph_volume_sizes, false) ?
+    try(length(local.provider_config.ceph_volume_sizes) > 0, false) ?
       [
         for i in range(0, local.provider_config.quantity) :
-          length(local.provider_config.ceph_volume_sizes) > 0 ?
-              local.provider_config.ceph_volume_sizes[
-                min(max(0,i), length(local.provider_config.ceph_volume_sizes) - 1)
-              ] : 0
+          local.provider_config.ceph_volume_sizes[
+            min(max(0,i), length(local.provider_config.ceph_volume_sizes) - 1)
+          ]
       ] : []
   )
 }

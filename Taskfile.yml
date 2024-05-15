@@ -103,7 +103,8 @@ tasks:
   infra-*-*:
     desc: |-
       creates infra resources using all infra providers defined in
-      the group yml. eg. task infra-create-dev or infra-update-dev
+      the group yml. eg. task infra-create-dev, infra-update-dev, 
+      infra-update-dev -- -auto-approve
     # internal: true
     silent: true
     vars:
@@ -133,12 +134,13 @@ tasks:
       # create a folder for the infra provider
       - for: { var: PROVIDERS }
         cmd: |-
+          mkdir -p ./infra-{{.GROUP}}
+          
           host_exists=$(yq '.infra_providers.{{.ITEM}} |
             has("hosts")' 'group_vars/{{.GROUP}}.yml')
           
           if  [ "$host_exists" == 'false' ] &&
               [ -d {{.INFRA_TEMPLATE}}/{{.ITEM}} ]; then
-            mkdir -p ./infra-{{.GROUP}}
             cp -r {{.INFRA_TEMPLATE}}/{{.ITEM}} ./infra-{{.GROUP}}
           fi
       - for: { var: PROVIDERS }
@@ -162,9 +164,10 @@ tasks:
       GET_IP_TASK:
         sh: |
           if [ -d ./infra-{{.GROUP}}/{{.PROVIDER}} ]; then
-            echo "get-ips-provider"
+          # if [[ $(find ./infra-{{.GROUP}}/{{.PROVIDER}} -type f -name "*.tf" 2>/dev/null) ]]
+            echo "get-hosts-provider"
           else
-            echo "get-ips-custom"
+            echo "get-hosts-custom"
           fi
     dotenv: ['./group_vars/{{.GROUP}}.env', './group_vars/.env', '.env']
     cmds:
@@ -176,13 +179,14 @@ tasks:
             {{.UPDATE}} == true ) ]]; then
           terraform -chdir=./infra-{{.GROUP}}/{{.PROVIDER}} init
         fi
-      - |
-        if [[ -d ./infra-{{.GROUP}}/{{.PROVIDER}} &&
-          ( (! -f ./infra-{{.GROUP}}/{{.PROVIDER}}/terraform.tfstate) ||
-            {{.UPDATE}} == true ) ]]; then
-          terraform -chdir=./infra-{{.GROUP}}/{{.PROVIDER}} plan \
-            -var "provider_token=${DO_PAT}"
-        fi
+      # plan step seems unnecessary
+      # - |
+      #   if [[ -d ./infra-{{.GROUP}}/{{.PROVIDER}} &&
+      #     ( (! -f ./infra-{{.GROUP}}/{{.PROVIDER}}/terraform.tfstate) ||
+      #       {{.UPDATE}} == true ) ]]; then
+      #     terraform -chdir=./infra-{{.GROUP}}/{{.PROVIDER}} plan \
+      #       -var "provider_token=${DO_PAT}"
+      #   fi
       - |
         if [[ -d ./infra-{{.GROUP}}/{{.PROVIDER}} &&
           ( (! -f ./infra-{{.GROUP}}/{{.PROVIDER}}/terraform.tfstate) ||
@@ -197,33 +201,30 @@ tasks:
           PROVIDER: '{{.PROVIDER}}'
         silent: true
 
-  get-ips-provider:
+  get-hosts-provider:
     desc: |-
-      Extracts, formats and saves the IPs created by
+      Extracts, formats and saves the HOSTS created by
       the provider into the hosts.yml file.
     internal: true
     vars:
       # get from parent
       GROUP: '{{default "undefined" .GROUP}}'
       PROVIDER: '{{default "undefined" .PROVIDER}}'
-      GET_IP_COMMAND:
-        sh: yq '.get-ips' './infra-{{.GROUP}}/{{.PROVIDER}}/config.yml' | tr -d '\n'
-      IPs:
+      # GET_HOSTS_COMMAND:
+      #   sh: yq '.get-hosts' './infra-{{.GROUP}}/{{.PROVIDER}}/config.yml' | tr -d '\n'
+      HOSTS:
         sh: |-
-          {{.GET_IP_COMMAND}} ./infra-{{.GROUP}}/{{.PROVIDER}}/terraform.tfstate
+          yq '.outputs.ansible-hosts.value' \
+            ./infra-{{.GROUP}}/{{.PROVIDER}}/terraform.tfstate
     env:
-      IPs: '{{.IPs}}'
+      HOSTS: '{{.HOSTS}}'
     cmds:
       - |
-        echo "IPs for [{{.GROUP}}|{{.PROVIDER}}]:"
-        echo "$IPs"
+        echo "HOSTS for [{{.GROUP}}|{{.PROVIDER}}]:"
+        echo "$HOSTS"
       - |
-        formatted_IPs=$(echo "$IPs" |
-          yq '.[] as $ips ireduce({}; .[$ips | .ipv4_address | . style="flow"] =
-            {"ipv4_address_private": $ips | .ipv4_address_private})')
-
-        result=$(echo "$formatted_IPs" |
-          yq eval-all --inplace 'select(fileIndex == 1) as $provider_hosts |
+        result=$(echo "$HOSTS" |
+          yq -o=yaml --prettyPrint eval-all --inplace 'select(fileIndex == 1) as $provider_hosts |
               select(fileIndex == 0) |
               .{{.GROUP}}.children.{{.PROVIDER}}.hosts =
                 (.{{.GROUP}}.children.{{.PROVIDER}}.hosts * $provider_hosts |
@@ -234,7 +235,7 @@ tasks:
 
   
   # others
-  get-ips-custom:
+  get-hosts-custom:
     internal: true
     vars:
       # get from parent
@@ -243,7 +244,7 @@ tasks:
     cmds:
     # 1 is the source(right), 0 is the destination(left)
     - | 
-      echo "IPs for [{{.GROUP}}|{{.PROVIDER}}]:"
+      echo "HOSTS for [{{.GROUP}}|{{.PROVIDER}}]:"
       echo "$(yq -o=json '.infra_providers.{{.PROVIDER}}.hosts |
         to_entries |
         map({"ipv4_address": .key, "ipv4_address_private": .value.ipv4_address_private})' \
@@ -258,7 +259,7 @@ tasks:
   ############# Deploy Infra #############
 
   ############# Destroy Infra #############
-  destroy-infra--all:
+  destroy-infra-all:
     desc: Destroys all the infra resources created by this project.
     vars:
       GROUPS:
@@ -317,7 +318,7 @@ tasks:
   run-deploy-*-*:
     desc: |-
       Runs the tasks required to deploy microcloud on the
-      given infrastructure. task run-deploy-init-all
+      given infrastructure. eg. task run-deploy-init-all, task run-deploy-install-dev
     vars:
       ACTION: '{{index .MATCH 0}}'
       GROUP: '{{index .MATCH 1}}'
@@ -326,7 +327,7 @@ tasks:
         ansible-playbook --limit {{.GROUP}} --tags {{.ACTION}} \
           {{.MAIN_PLAYBOOK}} {{.CLI_ARGS}}
 
-  microcloud-destroy-*:
+  run-destroy-*:
     desc: |
       Pulls down the microcloud deployment.
     cmds:

@@ -1,134 +1,154 @@
 ---
 # Add further tasks for the common role (applied to all servers) to this playbook...
 
-# - name: Gather the package facts
-#   package_facts:
-#     manager: auto
-# # - name: Print the package facts
-# #   ansible.builtin.debug:
-# #     var: ansible_facts.packages
-# #   # tags: ["prerequisite"]
-# # - name: Show interface
-# #   debug:
-# #     msg: "{{ ansible_eth9 }}"
-# # - name: Show interfaces
-# #   debug:
-# #     msg: "{{ ansible_interfaces }}"
-
-# - name: Update package lists
-#   apt: update_cache=yes
+- name: Gather the package facts
+  package_facts:
+    manager: auto
+# - name: Print the package facts
+#   ansible.builtin.debug:
+#     var: ansible_facts.packages
 #   # tags: ["prerequisite"]
-
-# - name: Install snapd package
-#   when: "'snapd' not in ansible_facts.packages"
-#   apt:
-#     name: snapd
-#     state: present
-#   # tags: ["prerequisite"]
-
-# - name: Install core snap
-#   when: "'snapd' not in ansible_facts.packages"
-#   snap:
-#     name: core
-#     state: present
-#   # tags: ["prerequisite"]
-
-# - name: Install kmod package
-#   when: "'kmod' not in ansible_facts.packages"
-#   apt:
-#     name: kmod
-#     state: present
-#   # tags: ["prerequisite"]
-
-# - name: Install macchanger package
-#   when: "'macchanger' not in ansible_facts.packages"
-#   apt:
-#     name: macchanger
-#     state: present
-#   # tags: ["prerequisite"]
-
-# - name: Load dummy kernel module
-#   modprobe:
-#     name: dummy
-#   # tags: ["prerequisite"]
-
-# - name: Create dummy interface {{ ovn_uplink_interface }}
-#   when: 
-#     - "ovn_uplink_interface not in ansible_interfaces"
-#   command: ip link add {{ ovn_uplink_interface }} type dummy
-#   args:
-#     creates: /sys/class/net/{{ ovn_uplink_interface }}
-#   # tags: ["prerequisite"]
-
-# - name: Random MAC given a prefix
-#   when: 
-#     - "ovn_uplink_interface not in ansible_interfaces"
+# - name: Show interface
 #   debug:
-#     msg: "{{ ovn_uplink_mac_prefix | community.general.random_mac }}"
-#   register: random_mac_address
+#     msg: "{{ ansible_eth9 }}"
+- name: Show interfaces
+  debug:
+    msg: "{{ ansible_interfaces }}"
 
-# - name: Assign random MAC address to {{ ovn_uplink_interface }}
-#   when: 
-#     - "ovn_uplink_interface not in ansible_interfaces"
-#   command: |-
-#     ip link set dev {{ ovn_uplink_interface }} address {{ random_mac_address.msg }}
-#   # tags: ["prerequisite"]
+# - name: Get loaded modules
+#   register: loaded_modules
+#   command: lsmod
+- name: Update package lists
+  apt: update_cache=yes
+  # tags: ["prerequisite"]
+
+- name: Install snapd package
+  when: "'snapd' not in ansible_facts.packages"
+  apt:
+    name: snapd
+    state: present
+  # tags: ["prerequisite"]
+
+- name: Install core snap
+  when: "'snapd' not in ansible_facts.packages"
+  snap:
+    name: core
+    state: present
+  # tags: ["prerequisite"]
+
+- name: Install kmod package
+  when: "'kmod' not in ansible_facts.packages"
+  apt:
+    name: kmod
+    state: present
+  # tags: ["prerequisite"]
+
+- name: Install macchanger package
+  when: "'macchanger' not in ansible_facts.packages"
+  apt:
+    name: macchanger
+    state: present
+  # tags: ["prerequisite"]
+
+- name: Load dummy kernel module
+  # when: "'dummy' not in loaded_modules.stdout"
+  modprobe:
+    name: dummy
+    state: present
+  # tags: ["prerequisite"]
+
+- name: Create dummy interface {{ ovn_uplink_interface }}
+  when: 
+    - "ovn_uplink_interface not in ansible_interfaces"
+  command: ip link add {{ ovn_uplink_interface }} type dummy
+  args:
+    creates: /sys/class/net/{{ ovn_uplink_interface }}
+  # tags: ["prerequisite"]
+
+- name: Random MAC given a prefix
+  when: 
+    - "ovn_uplink_interface not in ansible_interfaces"
+  debug:
+    msg: "{{ ovn_uplink_mac_prefix | community.general.random_mac }}"
+  register: random_mac_address
+
+- name: Assign random MAC address to {{ ovn_uplink_interface }}
+  when: 
+    - "ovn_uplink_interface not in ansible_interfaces"
+  command: |-
+    ip link set dev {{ ovn_uplink_interface }} address {{ random_mac_address.msg }}
+  # tags: ["prerequisite"]
 
 
-# - name: Bring {{ ovn_uplink_interface }} interface up
-#   when: 
-#     - "vars['ansible_' + ovn_uplink_interface].active != true"
-#   command: ip link set dev {{ ovn_uplink_interface }} up
-#   # tags: ["prerequisite"]
+- name: Bring {{ ovn_uplink_interface }} interface up
+  when: 
+    - (vars["ansible_" + ovn_uplink_interface] is not defined) or (vars["ansible_" + ovn_uplink_interface].active != true)
+  command: ip link set dev {{ ovn_uplink_interface }} up
+  # tags: ["prerequisite"]
 
-# - name: Show interface {{ ovn_uplink_interface }} information (for informational purposes only)
-#   debug:
-#     msg: |-
-#       f"Interface {{ ovn_uplink_interface }} is active: {{ vars['ansible_' + ovn_uplink_interface].active }}"
-#   # tags: ["prerequisite"]
+- name: Show interface {{ ovn_uplink_interface }} information (for informational purposes only)
+  debug:
+    msg: |-
+      f"Interface {{ ovn_uplink_interface }} is active: {{ vars['ansible_' + ovn_uplink_interface].active }}"
+  # tags: ["prerequisite"]
 
 - name: Set preseed file location
   debug:
     msg: infra-{{group_name}}/preseed.yml
   register: preseed_file
 
-- name: add lookup_subnet to preseed.yml using private ip and mask
+
+- name: add lookup_subnet to preseed.yml using private ip subnet
   delegate_to: localhost
   run_once: true
+  when: inventory_hostname == ansible_play_hosts[0]
   shell: |-
     touch {{preseed_file.msg}}
-    yq -i '.lookup_subnet = "{{ipv4_address_private}}{{lookup_subnet_mask}}"'\
+    yq -i '.lookup_subnet = "{{ipv4_address_private}}"'\
       {{preseed_file.msg}}
   become: false
 
-- name: Get static hostname
-  run_once: true
-  debug:
-    msg: "{{ ansible_hostname }}"
-  register: current_remote
-
-- name: Set microcloud system config
-  delegate_to: localhost
-  shell: |-
-    yq -i '.systems = (.systems[] |
-        [select(.name != env(remote_host))] |
-          . += [{"name": env(remote_host),"ovn_uplink_interface": "{{ovn_uplink_interface}}"}])' \
-      {{preseed_file.msg}}
-  environment:
-    remote_host: "{{current_remote.msg}}"
-  become: false
 - name: Set ovn config
   run_once: true
   local_action: command yq -i --prettyPrint '.ovn = env(ovn)' {{preseed_file.msg}}
   environment:
     ovn: "{{ovn}}"
   become: false
-- name: Set storage config
-  run_once: true
-  local_action: command yq -i --prettyPrint '.storage = env(storage)' {{preseed_file.msg}}
+  
+- name: Get remote hostname
+  debug:
+    msg: "{{ ansible_hostname }}"
+  register: current_remote
+
+- name: Set microcloud system config
+  delegate_to: localhost
+  throttle: 1 # make it run serially per remote host
+  # take the existing systems node if it exists and
+  # remove any object with the same name as this current host
+  # then add the details of the current host(essentally replacing)
+  shell: |-
+    yq -i --prettyPrint 'del(.systems[] | select(.name == "{{current_remote.msg}}")) |
+      .systems += [{"name": "{{current_remote.msg}}", "ovn_uplink_interface": "{{ovn_uplink_interface}}", "storage": env(host_storage)}]' \
+      {{preseed_file.msg}}
+
+  vars:
+    storage:
+      local:
+        path: '{{local_volume_path}}'
+        wipe: '{{wipe_local}}'
+      ceph:
+        - path: '{{ceph_volume_path}}'
+          wipe: '{{wipe_ceph}}'
+    current_remote: '{{current_remote}}'
   environment:
-    storage: "{{storage}}"
+    host_storage: '{{storage}}'
   become: false
+# - name: Set storage config
+#   run_once: true
+#   local_action: command yq -i --prettyPrint '.storage = env(storage)' {{preseed_file.msg}}
+#   environment:
+#     storage: "{{storage}}"
+  # become: false
     
 
 

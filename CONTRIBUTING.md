@@ -30,45 +30,58 @@ accepted.
 
 ### Adding infra-provider template
 
-If you want to add support automated compute provisioning for a cloud provider, you can duplicate and rename the [provider-scaffold](infra-template/provider-scaffold/) folder and begin editing.
+If you want to add support automated compute provisioning for a cloud provider, you can duplicate and rename
+the [digital_ocean](infra-template/provider-scaffold/) folder and begin editing.
+> Only underscore(_) is supported as a special character i the provider's name.
+
 
 The first place you would want to check is the (variables.tf)[variables.tf] file to see what variables are available.
 
 The goals are to:
-- provision infrastructure that are within the same subnet and/or are visible to eath other over a local/private network.
-- Write an appropriate command(see [digital_ocean config.yml sample](infra-template/digital_ocean/config.yml)) that can extract the public and private IPs into a json or yaml array.
- with the keys `ipv4_address` and `ipv4_address_private`.
- 
- eg. Valid Output can look like:
-
-``` yaml
-- ipv4_address: 64.224.46.104
-  ipv4_address_private: 10.118.0.4
-- ipv4_address: 134.132.12.63
-  ipv4_address_private: 10.118.0.3
-```
-or
-
-``` yaml
-- {"ipv4_address": "64.224.46.104", "ipv4_address_private": "10.118.0.4"}
-- {"ipv4_address": "134.132.12.63", "ipv4_address_private": "10.118.0.3"}
-```
-or
-``` json
-[
-  {
-    "ipv4_address": "64.224.46.104",
-    "ipv4_address_private": "10.118.0.4"
-  },
-  {
-    "ipv4_address": "134.132.12.63",
-    "ipv4_address_private": "10.118.0.3"
+- provision compute instances that are within the same subnet and/or are visible to eath other over
+a local/private network.
+- Create a terraform output called `ansible-hosts` with at minimum the public ipv4 address/url,
+private ip address of the created instances.
+ie.
+``` tf
+output "ansible-hosts" {
+  value = {
+    ...
   }
-]
+}
 ```
+See [digital_ocean infra.yml sample](infra-template/digital_ocean/infra.tf)
+ 
+A Valid Output would produce something like the below:
 
-
-
+``` jsonc
+"outputs": {
+  ...
+  "ansible-hosts": {
+    "value": {
+      // required: IP address or url
+      "104.131.191.142": {
+        // The volumes are the name of the volume as seen from
+        // within the server itself (eg. when you run lsblk)
+        "ceph_volume_path": "/dev/sdb", // required for distributed storage
+        "local_volume_path": "/dev/sda", // required for local storage
+        "hostname": "micro-droplet-0", //not required. as seen on the local network
+        "index_key": 0, // not required, can be used for internal purposes
+        "ipv4_address": "105.141.191.142", // not required
+        "ipv4_address_private": "10.108.0.2/20" // required, Ip on the local network
+      },
+      "138.197.44.53": {
+        "ceph_volume_path": "/dev/sdb",
+        "local_volume_path": "/dev/sda",
+        "hostname": "micro-droplet-1",
+        "index_key": 1,
+        "ipv4_address": "148.137.44.53",
+        "ipv4_address_private": "10.108.0.4/20"
+      }
+    }
+  }
+}
+```
 
 ### Useful Links
 

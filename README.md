@@ -86,23 +86,29 @@ that is not yet supported, then you'd only need to specify the `hosts:` field.
 infra_providers:
   self_hosted:
     hosts:  # only host field will be used if specified
-      # ipv4_address_private should be specified also
+      # hostname and ipv4_address_private are manatory
       10.1.1.0: # public IP
-        ipv4_address_private: "192.168.20.50"
+        # local ip in subnet form
+        ipv4_address_private: "192.168.20.50/24" # [mandatory]
+        hostname: micro-droplet-0 # [mandatory]
       # where ipv4_address_private is not specified like the below,
       # the IP key(s) will be considered for both public
       # and private IP use
-      10.1.1.1: # public & private IP
-
-      # In this case, you cannot speecify ipv4_address_private using
-      # the ansible range syntax so all ips in this range
-      # are considered as public and private
-      www[01:50].example.com:
-      
+      64.18.0.1:
+        hostname: micro-ec-0
+        ipv4_address_private: "192.168.20.55/24"
+        # you can specify volume names (as seen from lsblk)
+        ceph_volume: sdb # for distributed storage
+        local_volume: sda # for local storage
       host.example.com:
-        ipv4_address_private: "192.168.30.51"
+        hostname: micro-vm-1
+        ipv4_address_private: "192.168.30.51/24"
+        # you can specify other variables as you wish
         http_port: 80
         maxRequestsPerChild: 808
+      # The below will not be supported because you will not be able to
+      # specify the hostname for it
+      # www[01:50].example.com:
     quantity: 3 # has no effect
 ```
 > Important: This project is currently only tested on **ubuntu** 22.04 LTS..
@@ -193,15 +199,7 @@ task destroy-microcloud-all
 microcloud initialization supports a non interactive setup using a preseed.
 See [example](https://canonical-microcloud.readthedocs-hosted.com/en/latest/how-to/initialise/#howto-initialise-preseed).
 
-In this project, you can configure `ovn` and `storage` (not systems.storage)
-on any of your group vars. You however cannot directly configure `systems`.
-
-here is also no need to manually configure `lookup_subnet`. Simply specify the
-`lookup_subnet_mask` (eg /24) and the subnet will be automatically generated using
-the private ip of one of the servers
-
-> Tip: Your lookup_subnet_mask determines how wide microcloud will search when looking
-for machines to add to the cluster.
+For this project, you only need to configure `ovn`. Other fields like `systems` and `storage` will be automatically populated based on other fields that you have provided.
 
 ## 4 Community<a id='4'></a>
 
