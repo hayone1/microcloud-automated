@@ -14,11 +14,13 @@ groups: # can only be in all.yml
 # Values here can be the all.yml or in a group specific yml
 # and should generally be fine with their defaults.
 ######################################
-
-# dummy interface that should be created
-# for microcloud to use
+# A multicast virtual network will be created with this subnet to 
+# allow microcloud locate other servers with mDNS
+lookup_subnet: 172.16.0.0/24
+# `ovn_uplink_interface` is optional and represents the name of the interface
+# that will be created and reserved for use with OVN
 ovn_uplink_interface: eth9
-ovn_uplink_mac_prefix: '52:54:00'
+# ovn_uplink_mac_prefix: '52:54:00'
 # location where various packages will be installed
 package_dir: /usr/bin
 

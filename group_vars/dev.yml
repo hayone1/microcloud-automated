@@ -6,7 +6,7 @@ ansible_ssh_host_key_checking: false
 # if file name is dev.yml, then group_name is dev
 group_name: dev
 # mandatory
-ansible_user: orangepi
+ansible_user: root
 # mandatory
 ansible_ssh_private_key_file: ~/.ssh/id_rsa
 ansible_ssh_public_key_file: ~/.ssh/id_rsa.pub
@@ -18,11 +18,19 @@ prefix: micro
 # |digital_ocean|
 # you can also put arbitrary values
 infra_providers:
-  self_hosted:
-    hosts:  # only host field will be used if specified
-      192.168.0.145: # public IP
-        ipv4_address_private: "192.168.0.145/24" # [mandatory]
-        hostname: orangepi4-lts
-      192.168.0.147: # public IP
-        ipv4_address_private: "192.168.0.147/24" # [mandatory]
-        hostname: orangepi800
+  # self_hosted:
+  #   hosts:  # only host field will be used if specified
+  #     192.168.0.145: # public IP
+  #       ipv4_address_private: "192.168.0.145/24" # [mandatory]
+  #       hostname: orangepi4-lts
+  #     192.168.0.147: # public IP
+  #       ipv4_address_private: "192.168.0.147/24" # [mandatory]
+  #       hostname: orangepi800
+  digital_ocean:
+    quantity: 2
+    size: nano
+    region: "nyc3"
+    os: ubuntu-22-04-x64
+    custom_size: ['s-1vcpu-512mb-10gb'] # 
+    # local_volume_sizes: [5]
+    # ceph_volume_sizes: [5]

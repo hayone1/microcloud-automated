@@ -11,9 +11,9 @@
 # - name: Show interface
 #   debug:
 #     msg: "{{ ansible_eth9 }}"
-- name: Show interfaces
-  debug:
-    msg: "{{ ansible_interfaces }}"
+# - name: Show interfaces
+#   debug:
+#     msg: "{{ ansible_interfaces }}"
 
 # - name: Get loaded modules
 #   register: loaded_modules
@@ -87,6 +87,8 @@
   # tags: ["prerequisite"]
 
 - name: Show interface {{ ovn_uplink_interface }} information (for informational purposes only)
+  when: 
+    - vars["ansible_" + ovn_uplink_interface] is defined
   debug:
     msg: |-
       f"Interface {{ ovn_uplink_interface }} is active: {{ vars['ansible_' + ovn_uplink_interface].active }}"
@@ -109,6 +111,7 @@
   become: false
 
 - name: Set ovn config
+  when: ovn is defined
   run_once: true
   local_action: command yq -i --prettyPrint '.ovn = env(ovn)' {{preseed_file.msg}}
   environment:
@@ -134,10 +137,10 @@
   vars:
     storage:
       local:
-        path: '{{local_volume_path}}'
+        path: '{{local_volume_path | default("")}}'
         wipe: '{{wipe_local}}'
       ceph:
-        - path: '{{ceph_volume_path}}'
+        - path: '{{ceph_volume_path | default("")}}'
           wipe: '{{wipe_ceph}}'
     current_remote: '{{current_remote}}'
   environment:

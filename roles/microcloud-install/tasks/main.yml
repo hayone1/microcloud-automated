@@ -3,9 +3,10 @@
   package_facts:
     manager: auto
 
-# - name: Refresh all snaps
-#   snap:
-#     state: refreshed
+- name: Refresh all snaps
+  snap:
+    name: "*"
+    state: refreshed
 
 - name: Install LXD snap (channel - {{lxd_channel}})
   when: "'lxd' not in ansible_facts.packages"
