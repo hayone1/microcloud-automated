@@ -4,13 +4,17 @@
 - name: Gather the package facts
   package_facts:
     manager: auto
+- name: Set index based on inventory hostname
+  set_fact:
+    index: "{{ ansible_play_hosts.index(inventory_hostname) | int }}"
 # - name: Print the package facts
 #   ansible.builtin.debug:
 #     var: ansible_facts.packages
 #   # tags: ["prerequisite"]
 # - name: Show interface
 #   debug:
-#     msg: "{{ ansible_eth9 }}"
+#     msg: "{{ ansible_facts['mcbr_bridge'] }}"
+    # msg: "{{ hostvars[host]['ansible_facts']['eth0']['ipv4']['address'] }}"
 # - name: Show interfaces
 #   debug:
 #     msg: "{{ ansible_interfaces }}"
@@ -18,8 +22,10 @@
 # - name: Get loaded modules
 #   register: loaded_modules
 #   command: lsmod
-- name: Update package lists
-  apt: update_cache=yes
+
+###### Uncomment this
+# - name: Update package lists
+#   apt: update_cache=yes
   # tags: ["prerequisite"]
 
 - name: Install snapd package
@@ -36,69 +42,161 @@
     state: present
   # tags: ["prerequisite"]
 
-- name: Install kmod package
-  when: "'kmod' not in ansible_facts.packages"
+- name: Install bridge-utils
+  when: "'bridge-utils' not in ansible_facts.packages"
   apt:
-    name: kmod
+    name: bridge-utils
     state: present
-  # tags: ["prerequisite"]
+    # update_cache: yes
 
-- name: Install macchanger package
-  when: "'macchanger' not in ansible_facts.packages"
+- name: Install net-tools
+  when: "'net-tools' not in ansible_facts.packages"
   apt:
-    name: macchanger
+    name: net-tools
     state: present
-  # tags: ["prerequisite"]
+    # update_cache: yes
 
-- name: Load dummy kernel module
-  # when: "'dummy' not in loaded_modules.stdout"
-  modprobe:
-    name: dummy
+- name: Install install network-manager
+  when: "'network-manager' not in ansible_facts.packages"
+  apt:
+    name: network-manager
     state: present
-  # tags: ["prerequisite"]
 
-- name: Create dummy interface {{ ovn_uplink_interface }}
+- name: Create interface bridge {{ lookup_bridge }}
+  when:
+    - >-
+      vars["ansible_" + lookup_bridge] is not defined
+      or vars["ansible_" + lookup_bridge].active != true
+  command: brctl addbr {{ lookup_bridge }}
+  args:
+    creates: /sys/class/net/{{ lookup_bridge }}
+
+# # - name: Set default FORWARD policy to DROP in ebtables
+# #   command: ebtables -P FORWARD DROP
+
+- name: >-
+    Set firewall rule to DROP packets in
+    FORWARD chain(ebtables replacement)
   when: 
-    - "ovn_uplink_interface not in ansible_interfaces"
-  command: ip link add {{ ovn_uplink_interface }} type dummy
+    - >-
+      vars["ansible_" + lookup_bridge] is not defined
+      or vars["ansible_" + lookup_bridge].active != true
+  iptables:
+    chain: FORWARD
+    jump: DROP
+
+- name: Assign IP address to {{ lookup_bridge }} interface bridge
+  when: 
+    - >-
+      vars["ansible_" + lookup_bridge] is not defined
+      or vars["ansible_" + lookup_bridge].ipv4.address is undefined
+  command: >-
+    ip addr add
+    {{ lookup_subnet | ansible.utils.next_nth_usable(index | int + 1) }}/{{ bridge_netmask }}
+    dev {{ lookup_bridge }}
+  # command: echo bridge details - {{vars["ansible_" + lookup_bridge]}}
+  vars:
+    index: '{{ansible_play_hosts.index(inventory_hostname)}}'
+    # bridge_ip: "{{ lookup_subnet | ansible.utils.next_nth_usable(index) }}"
+    bridge_netmask: "{{ lookup_subnet | ansible.utils.ipaddr('prefix')}}"
+
+- name: Bring {{ lookup_bridge }} interface bridge up
+  when:
+    - vars["ansible_" + lookup_bridge] is not defined
+      or vars["ansible_" + lookup_bridge].active != true
+  command: ip link set dev {{ lookup_bridge }} up
+
+# - name: Create gretap tunnels (all-to-all)
+#   nmcli:
+#     type: gre
+#     conn_name: "{{ iface_name }}"
+#     ifname: "{{ iface_name }}"
+#     ip_tunnel_dev: "{{ lookup_bridge }}"
+#     ip_tunnel_local: "{{ ipv4_address_private }}"
+#     ip_tunnel_remote: "{{ hostvars[item]['ipv4_address_private'] }}"
+#     state: present
+
+- name: Create gretap tunnels (all-to-all)
+  command: |-
+    ip link add {{ iface_name }} type gretap local {{ ipv4_address_private }} remote {{ hostvars[item]['ipv4_address_private'] }}
+  vars:
+    iface_name: gretap_{{ index_key }}_{{ hostvars[item]['index_key'] }}
+  args:
+    creates: /sys/class/net/{{ iface_name }}
+  loop: "{{ groups[ansible_limit] }}"
+  when: >-
+    vars["ansible_" + iface_name] is not defined
+    and inventory_hostname != item
+  register: gretap_result
+
+# - name: Debug gretap creation results
+#   debug:
+#     msg: "Created gretap tunnel: {{ gretap_result }}"
+  # when: gretap_result.changed
+
+- name: Bring gretap tunnel up
+  command: ip link set dev {{ iface_name }} up
+  vars:
+    iface_name: gretap_{{ index_key }}_{{ hostvars[item]['index_key'] }}
+  loop: "{{ groups[ansible_limit] }}"
+  when: >-
+    (vars["ansible_" + iface_name] is not defined
+    or vars["ansible_" + iface_name].active != true)
+    and inventory_hostname != item
+
+- name: Check if gretap tunnels have already been bridged.
+  shell: ip link show {{ iface_name }} | grep "master {{ lookup_bridge }}"
+  vars:
+    iface_name: gretap_{{ index_key }}_{{ hostvars[item]['index_key'] }}
+  loop: "{{ groups[ansible_limit] }}"
+  when: inventory_hostname != item
+  register: gretap_bridged
+
+- name: Connect gretap tunnel to {{ lookup_bridge }} bridge
+  command: brctl addif {{ lookup_bridge }} {{ iface_name }}
+  vars:
+    iface_name: gretap_{{ index_key }}_{{ hostvars[item]['index_key'] }}
+  loop: "{{ groups[ansible_limit] }}"
+  loop_control:
+    index_var: idx
+  when: >-
+    inventory_hostname != item
+    and gretap_bridged.results[idx].stdout == ""
+
+- name: Create ovn_uplink_interface veth pair {{ ovn_uplink_interface }} and {{ ovn_uplink_interface }}p
+  command: ip link add {{ ovn_uplink_interface }} type veth peer name {{ ovn_uplink_interface }}p
   args:
     creates: /sys/class/net/{{ ovn_uplink_interface }}
-  # tags: ["prerequisite"]
+  when: vars["ansible_" + ovn_uplink_interface] is not defined
 
-- name: Random MAC given a prefix
-  when: 
-    - "ovn_uplink_interface not in ansible_interfaces"
-  debug:
-    msg: "{{ ovn_uplink_mac_prefix | community.general.random_mac }}"
-  register: random_mac_address
+- name: Add ovn_uplink_interface {{ ovn_uplink_interface }} to {{ lookup_bridge }} bridge
+  command: ip link set {{ ovn_uplink_interface }}p master {{ lookup_bridge }}
 
-- name: Assign random MAC address to {{ ovn_uplink_interface }}
-  when: 
-    - "ovn_uplink_interface not in ansible_interfaces"
-  command: |-
-    ip link set dev {{ ovn_uplink_interface }} address {{ random_mac_address.msg }}
-  # tags: ["prerequisite"]
-
-
-- name: Bring {{ ovn_uplink_interface }} interface up
-  when: 
-    - (vars["ansible_" + ovn_uplink_interface] is not defined) or (vars["ansible_" + ovn_uplink_interface].active != true)
+- name: Bring "{{ ovn_uplink_interface }}" interface up
   command: ip link set dev {{ ovn_uplink_interface }} up
-  # tags: ["prerequisite"]
+  when: >-
+    (vars["ansible_" + ovn_uplink_interface] is not defined
+    or vars["ansible_" + ovn_uplink_interface].active != true)
 
-- name: Show interface {{ ovn_uplink_interface }} information (for informational purposes only)
-  when: 
-    - vars["ansible_" + ovn_uplink_interface] is defined
-  debug:
-    msg: |-
-      f"Interface {{ ovn_uplink_interface }} is active: {{ vars['ansible_' + ovn_uplink_interface].active }}"
-  # tags: ["prerequisite"]
+- name: Bring "{{ ovn_uplink_interface }}p" interface up
+  command: ip link set dev {{ ovn_uplink_interface }}p up
+  when: >-
+    (vars["ansible_" + ovn_uplink_interface] is not defined
+    or vars["ansible_" + ovn_uplink_interface].active != true)
+
+# - name: Show interface {{ ovn_uplink_interface }} information (for informational purposes only)
+#   when: 
+#     - vars["ansible_" + ovn_uplink_interface] is defined
+#   debug:
+#     msg: |-
+#       f"Interface {{ ovn_uplink_interface }} is active: {{ vars['ansible_' + ovn_uplink_interface].active }}"
+#   # tags: ["prerequisite"]
 
 - name: Set preseed file location
+  run_once: true
   debug:
     msg: infra-{{group_name}}/preseed.yml
   register: preseed_file
-
 
 - name: add lookup_subnet to preseed.yml using private ip subnet
   delegate_to: localhost
@@ -106,7 +204,7 @@
   when: inventory_hostname == ansible_play_hosts[0]
   shell: |-
     touch {{preseed_file.msg}}
-    yq -i '.lookup_subnet = "{{ipv4_address_private}}"'\
+    yq -i '.lookup_subnet = "{{ lookup_subnet }}"'\
       {{preseed_file.msg}}
   become: false
 
@@ -118,22 +216,23 @@
     ovn: "{{ovn}}"
   become: false
   
-- name: Get remote hostname
-  debug:
-    msg: "{{ ansible_hostname }}"
-  register: current_remote
+# - name: Get remote hostname
+#   debug:
+#     msg: "{{ ansible_hostname }}"
+#   register: current_remote
 
 - name: Set microcloud system config
   delegate_to: localhost
   throttle: 1 # make it run serially per remote host
-  # take the existing systems node if it exists and
+  # take the existing 'systems:' field if it exists and
   # remove any object with the same name as this current host
   # then add the details of the current host(essentally replacing)
-  shell: |-
-    yq -i --prettyPrint 'del(.systems[] | select(.name == "{{current_remote.msg}}")) |
-      .systems += [{"name": "{{current_remote.msg}}", "ovn_uplink_interface": "{{ovn_uplink_interface}}", "storage": env(host_storage)}]' \
-      {{preseed_file.msg}}
-
+  command: >-
+    yq -i --prettyPrint 'del(.systems[] | select(.name == "{{ansible_nodename}}")) |
+    .systems += [{"name": "{{ansible_nodename}}",
+    "ovn_uplink_interface": "{{ovn_uplink_interface}}",
+    "storage": env(host_storage)}]'
+    {{preseed_file.msg}}
   vars:
     storage:
       local:
@@ -142,17 +241,10 @@
       ceph:
         - path: '{{ceph_volume_path | default("")}}'
           wipe: '{{wipe_ceph}}'
-    current_remote: '{{current_remote}}'
+    # current_remote: '{{current_remote}}'
   environment:
     host_storage: '{{storage}}'
   become: false
-# - name: Set storage config
-#   run_once: true
-#   local_action: command yq -i --prettyPrint '.storage = env(storage)' {{preseed_file.msg}}
-#   environment:
-#     storage: "{{storage}}"
-  # become: false
-    
 
 
 

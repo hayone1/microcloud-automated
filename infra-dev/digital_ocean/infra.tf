@@ -69,62 +69,6 @@ resource "digitalocean_droplet" "microcloud-droplet" {
   }
 }
 
-# resource "ssh_resource" "resource-data" {
-  
-#   count       = length(digitalocean_droplet.microcloud-droplet)
-#   host        = digitalocean_droplet.microcloud-droplet[count.index].ipv4_address
-#   user        = local.server_user
-#   private_key = file(local.group_config.ansible_ssh_private_key_file)
-#   when        = "create"
-#   commands    = [
-#     # used the name of the created volume resource to get the in-server name
-#     <<EOF
-#       path=$(df | awk '{print $1, $6}' | grep ${digitalocean_volume.local-volume[count.index].name} | awk '{print $1}') &&
-#         index=$(echo -n ${digitalocean_volume.local-volume[count.index].name} | tail -c 1)  &&
-#         hostname=$(hostname) &&
-#         ipv4_address=$(hostname -I | awk '{print $1}') &&
-#         ipv4_address_private=$(ip addr show | grep 'inet ' | grep -v '127.0.0.1' | tail -n 1 | awk '{print $2}') &&
-#         echo -e "hostname: $hostname\nipv4_address: $ipv4_address\nipv4_address_private: $ipv4_address_private\nindex_key: $index\nlocal_volume_path: $name\n"
-#     EOF
-#   ]
-# }
-
-# resource "ssh_resource" "local-volume-disk" {
-#   count       = length(digitalocean_volume.local-volume)
-#   host        = digitalocean_droplet.microcloud-droplet[count.index].ipv4_address
-#   user        = local.server_user
-#   private_key = file(local.group_config.ansible_ssh_private_key_file)
-#   when        = "create"
-#   commands    = [
-#     # used the name of the created volume resource to get the in-server name
-#     <<EOF
-#       path=$(df | awk '{print $1, $6}' | grep ${digitalocean_volume.local-volume[count.index].name} | awk '{print $1}') &&
-#         index=$(echo -n ${digitalocean_volume.local-volume[count.index].name} | tail -c 1)  &&
-#         hostname=$(hostname) &&
-#         ipv4_address=$(hostname -I | awk '{print $1}') &&
-#         ipv4_address_private=$(ip addr show | grep 'inet ' | grep -v '127.0.0.1' | tail -n 1 | awk '{print $2}') &&
-#         echo -e "hostname: $hostname\nipv4_address: $ipv4_address\nipv4_address_private: $ipv4_address_private\nindex_key: $index\nlocal_volume_path: $path\n"
-#     EOF
-#   ]
-# }
-# resource "ssh_resource" "ceph-volume-disk" {
-#   count       = length(digitalocean_volume.ceph-volume)
-#   host        = digitalocean_droplet.microcloud-droplet[count.index].ipv4_address
-#   user        = local.server_user
-#   private_key = file(local.group_config.ansible_ssh_private_key_file)
-#   when        = "create"
-#   commands    = [
-#     # used the name of the created volume resource to get the in-server name
-#     <<EOF
-#       path=$(df | awk '{print $1, $6}' | grep ${digitalocean_volume.ceph-volume[count.index].name} | awk '{print $1}') &&
-#         index=$(echo -n ${digitalocean_volume.ceph-volume[count.index].name} | tail -c 1)  &&
-#         hostname=$(hostname) &&
-#         ipv4_address=$(hostname -I | awk '{print $1}') &&
-#         ipv4_address_private=$(ip addr show | grep 'inet ' | grep -v '127.0.0.1' | tail -n 1 | awk '{print $2}') &&
-#         echo -e "hostname: $hostname\nipv4_address: $ipv4_address\nipv4_address_private: $ipv4_address_private\nindex_key: $index\nceph_volume_path: $path\n"
-#     EOF
-#   ]
-# }
 # get host data directly from host, this offers a generic way of doing do
 # for any cloud provider
 resource "ssh_resource" "hosts-data" {
@@ -141,8 +85,10 @@ resource "ssh_resource" "hosts-data" {
         index=$(echo -n ${digitalocean_droplet.microcloud-droplet[count.index].name} | tail -c 1)  &&
         hostname=$(hostname) &&
         ipv4_address=$(hostname -I | awk '{print $1}') &&
-        ipv4_address_private=$(ip addr show | grep 'inet ' | grep -v '127.0.0.1' | tail -n 1 | awk '{print $2}') &&
-        echo -e "hostname: $hostname\nipv4_address: $ipv4_address\nipv4_address_private: $ipv4_address_private\nindex_key: $index\nlocal_volume_path: $local_volume_path\nceph_volume_path: $ceph_volume_path\n"
+        ipv4_address_private='${digitalocean_droplet.microcloud-droplet[count.index].ipv4_address_private}' &&
+        private_interface='${digitalocean_droplet.microcloud-droplet[count.index].ipv4_address_private}' &&
+        ipv4_address_private_iface=$(ip addr show | grep "inet $ipv4_address_private" | awk '{print $7}') &&
+        echo -e "hostname: $hostname\nipv4_address: $ipv4_address\nipv4_address_private: $ipv4_address_private\nindex_key: $index\nlocal_volume_path: $local_volume_path\nceph_volume_path: $ceph_volume_path\nipv4_address_private_iface: $ipv4_address_private_iface\n"
     EOF
   ]
 }

@@ -14,9 +14,11 @@ groups: # can only be in all.yml
 # Values here can be the all.yml or in a group specific yml
 # and should generally be fine with their defaults.
 ######################################
-# A multicast virtual network will be created with this subnet to 
+# The below virtual multicast network bridge and tunnel will be created to 
 # allow microcloud locate other servers with mDNS
-lookup_subnet: 172.16.0.0/24
+lookup_subnet: 172.16.0.0/24 # bridge
+# lookup_tunnel_subnet: 172.16.1.0/24
+lookup_bridge: mcbr_bridge # only alphanumbric and underscore
 # `ovn_uplink_interface` is optional and represents the name of the interface
 # that will be created and reserved for use with OVN
 ovn_uplink_interface: eth9

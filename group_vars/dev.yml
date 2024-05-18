@@ -27,7 +27,7 @@ infra_providers:
   #       ipv4_address_private: "192.168.0.147/24" # [mandatory]
   #       hostname: orangepi800
   digital_ocean:
-    quantity: 2
+    quantity: 3
     size: nano
     region: "nyc3"
     os: ubuntu-22-04-x64

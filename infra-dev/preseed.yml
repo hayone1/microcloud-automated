@@ -1,0 +1,29 @@
+lookup_subnet: 172.16.0.0/24
+systems:
+  - name: micro-droplet-0
+    ovn_uplink_interface: eth9
+    storage:
+      local:
+        path: ""
+        wipe: True
+      ceph:
+        - path: ""
+          wipe: True
+  - name: micro-droplet-2
+    ovn_uplink_interface: eth9
+    storage:
+      local:
+        path: ""
+        wipe: True
+      ceph:
+        - path: ""
+          wipe: True
+  - name: micro-droplet-1
+    ovn_uplink_interface: eth9
+    storage:
+      local:
+        path: ""
+        wipe: True
+      ceph:
+        - path: ""
+          wipe: True
