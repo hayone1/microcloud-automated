@@ -14,7 +14,7 @@
 # - name: Show interface
 #   debug:
 #     msg: "{{ anible_facts['mcbr_bridge'] }}"
-    # msg: "{{ hostvars[host]['ansible_facts']['eth0']['ipv4']['address'] }}"
+    # msg: "{{ hostvars[host]['ansible_facts']['eth1']['ipv4']['address'] }}"
 # - name: Show interfaces
 #   debug:
 #     msg: "{{ ansible_interfaces }}"
@@ -69,11 +69,22 @@
     name: network-manager
     state: present
 
-- name: Delete secondary ip from eth0 if exists (Temp)
+- name: Check if secondary ip exists on eth0
   shell: |
-    secondary_ip=$(ip addr show eth0 | grep 'inet ' | awk '{print $2}' | tail -n 1)
-    ip addr del "$secondary_ip" dev eth0
-  ignore_errors: true
+    ip addr show eth0 | grep "inet " | awk '{print $2}' | {
+        read -r ip1
+        read -r ip2
+        if [ -n "$ip2" ]; then
+            echo "$ip2"
+        fi
+    }
+  register: secondary_ip
+# - debug:
+#     msg: secondary ip - {{secondary_ip.stdout}}
+
+- name: Delete secondary ip
+  command: ip addr del {{ secondary_ip.stdout }} dev eth0
+  when: secondary_ip.stdout != ""
 
 - name: Check if bridge already exists
   command: |
@@ -81,10 +92,10 @@
   register: bridge_check
   ignore_errors: true
 
-- name: Create interface bridge {{ lookup_bridge }}
+- name: Create bridge interface {{ lookup_bridge }}
   delegate_to: '{{ansible_play_hosts[0]}}'
   run_once: true
-  # when:
+  when: bridge_check.rc != 0
   #   - >-
   #     vars["ansible_" + lookup_bridge] is not defined
   #     or vars["ansible_" + lookup_bridge].active != true
@@ -105,18 +116,23 @@
     bridge_netmask: "{{ lookup_subnet | ansible.utils.ipaddr('prefix')}}"
 
 
-- name: Create bridge on other hosts
-  when: inventory_hostname != {{ansible_play_hosts[0]}}
+- name: Create bridge interface on other hosts
+  when: (bridge_check.rc != 0) and inventory_hostname != ansible_play_hosts[0]
   command: >-
     lxc network create {{ lookup_bridge }}
     tunnel.lan.protocol=vxlan ipv4.address=none
     ipv4.address=none tunnel.lan.protocol=vxlan
-  loop: "{{ groups[ansible_limit] }}"
+  # loop: "{{ groups[ansible_limit] }}"
 
-- name: Attach bridge to default interface
+- name: Check if bridge is already attached to eth1
+  command: lxc profile show default
+  register: lxc_profile
+
+- name: Attach bridge to eth1 interface
+  when: "'eth1' not in lxc_profile.stdout"
   # delegate_to: '{{ansible_play_hosts[0]}}'
   # run_once: true
-  command: lxc network attach-profile {{ lookup_bridge }} default eth0
+  command: lxc network attach-profile {{ lookup_bridge }} default eth1
 
 
 # - name: Set default FORWARD policy to DROP in ebtables
@@ -181,15 +197,15 @@
 # First create the bridge on host1:
 
 # root@host1# lxc network create br0 tunnel.lan.protocol=vxlan
-# Now attach the bridge to eth0 in the default profile:
+# Now attach the bridge to eth1 in the default profile:
 
-# root@host1# lxc network attach-profile br0 default eth0
+# root@host1# lxc network attach-profile br0 default eth1
 # Then create the bridge on host2:
 
 # root@host2# lxc network create br0 tunnel.lan.protocol=vxlan ipv4.address=none ipv4.address=none tunnel.lan.protocol=vxlan
-# Attach the bridge to eth0 in the default profile:
+# Attach the bridge to eth1 in the default profile:
 
-# root@host2# lxc network attach-profile br0 default eth0
+# root@host2# lxc network attach-profile br0 default eth1
 
 
 # - name: Create vxlan tunnels (all-to-all)
@@ -340,7 +356,7 @@
     yq -i --prettyPrint 'del(.systems[] | select(.name == "{{ansible_nodename}}")) |
     .systems += [{"name": "{{ansible_nodename}}",
     "ovn_uplink_interface": "{{ovn_uplink_interface}}",
-    "storage": env(host_storage)}]'
+    "storage": env(host_storage)}] | del(.. | select(tag == "!!map" and length == 0))'
     {{preseed_file.msg}}
   vars:
     storage:

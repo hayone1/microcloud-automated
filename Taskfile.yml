@@ -315,7 +315,7 @@ tasks:
       - |-
         ansible-playbook --limit {{.GROUP}} --tags {{.ACTION}} \
           --list-tasks --list-hosts {{.MAIN_PLAYBOOK}} {{.CLI_ARGS}}
-  run-deploy-*-*:
+  deploy-*-*:
     desc: |-
       Runs the tasks required to deploy microcloud on the
       given infrastructure. eg. task run-deploy-init-all, task run-deploy-install-dev
