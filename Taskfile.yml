@@ -302,8 +302,8 @@ tasks:
       - rm -rf infra-{{.GROUP}}
   
   ############# Destroy Infra #############
-  # example usage task list-all-dev
-  # where dev will be the group
+
+############# Deploy Microcloud #############
   list-deploy-*-*: 
     desc: |-
       Lists the actions that will be taken to deploy microcloud on the
@@ -326,6 +326,28 @@ tasks:
       - |
         ansible-playbook --limit {{.GROUP}} --tags {{.ACTION}} \
           {{.MAIN_PLAYBOOK}} {{.CLI_ARGS}}
+############# Deploy Microcloud #############
+
+
+############# Deploy All #############
+  microcloud-*-up:
+    desc: Deploy everything needed to run microcloud
+    vars:
+      GROUP: '{{index .MATCH 0}}'
+    cmds:
+      - task infra-update-{{.GROUP}} -- --auto-approve
+      - task run-deploy-init-{{.GROUP}}
+      - task run-deploy-install-{{.GROUP}}
+############# Deploy All #############
+
+############# Destroy All #############
+  microcloud-*-down:
+    desc: Deploy everything needed to run microcloud
+    vars:
+      GROUP: '{{index .MATCH 0}}'
+    cmds:
+      - task destroy-infra-{{.GROUP}} -- --auto-approve
+############# Destroy All #############
 
   run-destroy-*:
     desc: |

@@ -1,74 +1,89 @@
 ---
-- name: Gather the package facts
-  package_facts:
-    manager: auto
+# - name: Gather the package facts
+#   package_facts:
+#     manager: auto
 
-- name: Refresh all snaps
-  snap:
-    name: "*"
-    state: refreshed
+# - name: Refresh all snaps
+#   snap:
+#     name: "*"
+#     state: present
 
 - name: Install LXD snap (channel - {{lxd_channel}})
-  when: "'lxd' not in ansible_facts.packages"
+  # when: "'lxd' not in ansible_facts.packages"
   snap:
     name: lxd
     channel: '{{lxd_channel}}'
     classic: no  # Avoid classic confinement (recommended)
 
 - name: Install Microceph snap (channel - '{{microceph_channel}}')
-  when: "'microceph' not in ansible_facts.packages"
+  # when: "'microceph' not in ansible_facts.packages"
   snap:
     name: microceph
     channel: '{{microceph_channel}}'
     classic: no
 
 - name: Install MicroOVN snap (channel - '{{microovn_channel}}')
-  when: "'microovn' not in ansible_facts.packages"
+  # when: "'microovn' not in ansible_facts.packages"
   snap:
     name: microovn
     channel: '{{microovn_channel}}'
     classic: no
 
 - name: Install Microcloud snap (channel - '{{microcloud_channel}}')
-  when: "'microcloud' not in ansible_facts.packages"
+  # when: "'microcloud' not in ansible_facts.packages"
   snap:
     name: microcloud
     channel: '{{microcloud_channel}}'
     classic: no
 
-- name: Copy preseed file to remote server
+- name: Copy preseed file to first host
   delegate_to: '{{ansible_play_hosts[0]}}'
+  # when: inventory_hostname == ansible_play_hosts[0]
   run_once: true
   copy:
-    src: ./infra-{{group_name}}/preseed.yml
-    dest: /tmp/infra-{{group_name}}-preseed.yml
+    src: ./infra-{{ansible_limit}}/preseed.yml
+    dest: /tmp/infra-{{ansible_limit}}-preseed.yml
   # register: preseed_file
 
 - name: Initialize microcloud (only on first host)
   # when: inventory_hostname == ansible_play_hosts[0]
   delegate_to: '{{ansible_play_hosts[0]}}'
   run_once: true
-  shell: cat /tmp/infra-{{group_name}}-preseed.yml | microcloud init --preseed
+  shell:
+    cmd: cat /tmp/infra-{{ansible_limit}}-preseed.yml | microcloud init --preseed
   # environment:
   #   PRESEED: "{{ lookup('file', preseed_file.msg) }}"
   register: init_result
+  retries: 5
+  delay: 10
+  until: init_result is not failed
 - debug:
     msg: '{{init_result.stdout_lines}}'
 
-- name: Enable LXD UI via snap
-  when: init_result.rc == 0
-  delegate_to: '{{ansible_play_hosts[0]}}'
-  run_once: true
-  snap:
-    name: lxd
-    state: set
-    options:
-      ui.enable: true
+# should be enabled by default
+# - name: Enable LXD UI via snap
+#   when: init_result.rc == 0
+#   delegate_to: '{{ansible_play_hosts[0]}}'
+#   run_once: true
+#   snap:
+#     name: lxd
+#     state: set
+#     options:
+#       ui.enable: true
 
-- name: Reload LXD daemon
+# - name: Reload LXD daemon
+#   when: init_result.rc == 0
+#   delegate_to: '{{ansible_play_hosts[0]}}'
+#   run_once: true
+#   systemd:
+#     name: snap.lxd.daemon
+#     state: reloaded
+
+- name: Show LXC Cluster
   when: init_result.rc == 0
   delegate_to: '{{ansible_play_hosts[0]}}'
   run_once: true
-  systemd:
-    name: snap.lxd.daemon
-    state: reloaded
+  command: lxc cluster list
+  register: lxc_cluster
+- debug:
+    msg: "{{lxc_cluster}}"

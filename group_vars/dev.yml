@@ -4,7 +4,7 @@
 ansible_ssh_host_key_checking: false
 # mandatory, should be the name of this group
 # if file name is dev.yml, then group_name is dev
-group_name: dev
+# group_name: dev
 # mandatory
 ansible_user: root
 # mandatory
@@ -31,6 +31,6 @@ infra_providers:
     size: nano
     region: "nyc3"
     os: ubuntu-22-04-x64
-    custom_size: ['s-1vcpu-512mb-10gb'] # 
-    # local_volume_sizes: [5]
-    # ceph_volume_sizes: [5]
+    custom_size: ['s-1vcpu-512mb-10gb'] # region sensitive 
+    local_volume_sizes: [3]
+    ceph_volume_sizes: [3]

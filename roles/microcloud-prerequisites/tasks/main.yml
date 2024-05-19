@@ -13,7 +13,7 @@
 #   # tags: ["prerequisite"]
 # - name: Show interface
 #   debug:
-#     msg: "{{ ansible_facts['mcbr_bridge'] }}"
+#     msg: "{{ anible_facts['mcbr_bridge'] }}"
     # msg: "{{ hostvars[host]['ansible_facts']['eth0']['ipv4']['address'] }}"
 # - name: Show interfaces
 #   debug:
@@ -24,15 +24,22 @@
 #   command: lsmod
 
 ###### Uncomment this
-# - name: Update package lists
-#   apt: update_cache=yes
-  # tags: ["prerequisite"]
+- name: Update package lists
+  apt: update_cache=yes
 
 - name: Install snapd package
   when: "'snapd' not in ansible_facts.packages"
   apt:
     name: snapd
     state: present
+
+- name: Set snapd version
+  # when: "'snapd' not in ansible_facts.packages"
+  # snap:
+  #   name: snapd
+  #   state: present
+  #   channel: '{{snapd_channel}}'
+  command: snap refresh snapd --channel={{snapd_channel}}
   # tags: ["prerequisite"]
 
 - name: Install core snap
@@ -62,49 +69,89 @@
     name: network-manager
     state: present
 
+- name: Delete secondary ip from eth0 if exists (Temp)
+  shell: |
+    secondary_ip=$(ip addr show eth0 | grep 'inet ' | awk '{print $2}' | tail -n 1)
+    ip addr del "$secondary_ip" dev eth0
+  ignore_errors: true
+
+- name: Check if bridge already exists
+  command: |
+    lxc network show {{ lookup_bridge }}
+  register: bridge_check
+  ignore_errors: true
+
 - name: Create interface bridge {{ lookup_bridge }}
-  when:
-    - >-
-      vars["ansible_" + lookup_bridge] is not defined
-      or vars["ansible_" + lookup_bridge].active != true
-  command: brctl addbr {{ lookup_bridge }}
-  args:
-    creates: /sys/class/net/{{ lookup_bridge }}
-
-# # - name: Set default FORWARD policy to DROP in ebtables
-# #   command: ebtables -P FORWARD DROP
-
-- name: >-
-    Set firewall rule to DROP packets in
-    FORWARD chain(ebtables replacement)
-  when: 
-    - >-
-      vars["ansible_" + lookup_bridge] is not defined
-      or vars["ansible_" + lookup_bridge].active != true
-  iptables:
-    chain: FORWARD
-    jump: DROP
-
-- name: Assign IP address to {{ lookup_bridge }} interface bridge
-  when: 
-    - >-
-      vars["ansible_" + lookup_bridge] is not defined
-      or vars["ansible_" + lookup_bridge].ipv4.address is undefined
+  delegate_to: '{{ansible_play_hosts[0]}}'
+  run_once: true
+  # when:
+  #   - >-
+  #     vars["ansible_" + lookup_bridge] is not defined
+  #     or vars["ansible_" + lookup_bridge].active != true
+  # command: lxc network create {{ lookup_bridge }}
   command: >-
-    ip addr add
-    {{ lookup_subnet | ansible.utils.next_nth_usable(index | int + 1) }}/{{ bridge_netmask }}
-    dev {{ lookup_bridge }}
-  # command: echo bridge details - {{vars["ansible_" + lookup_bridge]}}
+    lxc network create {{ lookup_bridge }} tunnel.lan.protocol=vxlan
+  # command: >-
+  #   lxc network create {{ lookup_bridge }}
+  #   ipv6.address=none
+  #   ipv4.address={{ lookup_subnet |
+  #   ansible.utils.next_nth_usable(index | int + 1) }}/{{ bridge_netmask }}
+  #   ipv4.nat=true
+  # command: brctl addbr {{ lookup_bridge }}
+  # args:
+  #   creates: /sys/class/net/{{ lookup_bridge }}
   vars:
     index: '{{ansible_play_hosts.index(inventory_hostname)}}'
-    # bridge_ip: "{{ lookup_subnet | ansible.utils.next_nth_usable(index) }}"
     bridge_netmask: "{{ lookup_subnet | ansible.utils.ipaddr('prefix')}}"
 
-- name: Bring {{ lookup_bridge }} interface bridge up
-  when:
-    - vars["ansible_" + lookup_bridge] is not defined
-      or vars["ansible_" + lookup_bridge].active != true
-  command: ip link set dev {{ lookup_bridge }} up
+
+- name: Create bridge on other hosts
+  when: inventory_hostname != {{ansible_play_hosts[0]}}
+  command: >-
+    lxc network create {{ lookup_bridge }}
+    tunnel.lan.protocol=vxlan ipv4.address=none
+    ipv4.address=none tunnel.lan.protocol=vxlan
+  loop: "{{ groups[ansible_limit] }}"
+
+- name: Attach bridge to default interface
+  # delegate_to: '{{ansible_play_hosts[0]}}'
+  # run_once: true
+  command: lxc network attach-profile {{ lookup_bridge }} default eth0
+
+
+# - name: Set default FORWARD policy to DROP in ebtables
+#   command: ebtables -P FORWARD DROP
+
+# - name: >-
+#     Set firewall rule to DROP packets in
+#     FORWARD chain(ebtables replacement)
+#   when: 
+#     - >-
+#       vars["ansible_" + lookup_bridge] is not defined
+#       or vars["ansible_" + lookup_bridge].active != true
+#   iptables:
+#     chain: FORWARD
+#     jump: DROP
+
+# - name: Assign IP address to {{ lookup_bridge }} interface bridge
+#   when: 
+#     - >-
+#       vars["ansible_" + lookup_bridge] is not defined
+#       or vars["ansible_" + lookup_bridge].ipv4.address is undefined
+#   command: >-
+#     ip addr add
+#     {{ lookup_subnet | ansible.utils.next_nth_usable(index | int + 1) }}/{{ bridge_netmask }}
+#     dev {{ lookup_bridge }}
+#   vars:
+#     index: '{{ansible_play_hosts.index(inventory_hostname)}}'
+#     # bridge_ip: "{{ lookup_subnet | ansible.utils.next_nth_usable(index) }}"
+#     bridge_netmask: "{{ lookup_subnet | ansible.utils.ipaddr('prefix')}}"
+
+# - name: Bring {{ lookup_bridge }} interface bridge up
+#   when:
+#     - vars["ansible_" + lookup_bridge] is not defined
+#       or vars["ansible_" + lookup_bridge].active != true
+#   command: ip link set dev {{ lookup_bridge }} up
 
 # - name: Create gretap tunnels (all-to-all)
 #   nmcli:
@@ -116,52 +163,111 @@
 #     ip_tunnel_remote: "{{ hostvars[item]['ipv4_address_private'] }}"
 #     state: present
 
-- name: Create gretap tunnels (all-to-all)
-  command: |-
-    ip link add {{ iface_name }} type gretap local {{ ipv4_address_private }} remote {{ hostvars[item]['ipv4_address_private'] }}
-  vars:
-    iface_name: gretap_{{ index_key }}_{{ hostvars[item]['index_key'] }}
-  args:
-    creates: /sys/class/net/{{ iface_name }}
-  loop: "{{ groups[ansible_limit] }}"
-  when: >-
-    vars["ansible_" + iface_name] is not defined
-    and inventory_hostname != item
-  register: gretap_result
+# - name: Create gretap tunnels (all-to-all)
+#   command: |-
+#     ip link add {{ iface_name }} type gretap local {{ ipv4_address_private }} remote {{ hostvars[item]['ipv4_address_private'] }}
+#   vars:
+#     iface_name: gretap_{{ index_key }}_{{ hostvars[item]['index_key'] }}
+#   args:
+#     creates: /sys/class/net/{{ iface_name }}
+#   loop: "{{ groups[ansible_limit] }}"
+#   when: >-
+#     vars["ansible_" + iface_name] is not defined
+#     and inventory_hostname != item
+#   # register: gretap_result
 
-# - name: Debug gretap creation results
-#   debug:
-#     msg: "Created gretap tunnel: {{ gretap_result }}"
-  # when: gretap_result.changed
+#To-DO
+# try these commands
+# First create the bridge on host1:
 
-- name: Bring gretap tunnel up
-  command: ip link set dev {{ iface_name }} up
-  vars:
-    iface_name: gretap_{{ index_key }}_{{ hostvars[item]['index_key'] }}
-  loop: "{{ groups[ansible_limit] }}"
-  when: >-
-    (vars["ansible_" + iface_name] is not defined
-    or vars["ansible_" + iface_name].active != true)
-    and inventory_hostname != item
+# root@host1# lxc network create br0 tunnel.lan.protocol=vxlan
+# Now attach the bridge to eth0 in the default profile:
 
-- name: Check if gretap tunnels have already been bridged.
-  shell: ip link show {{ iface_name }} | grep "master {{ lookup_bridge }}"
-  vars:
-    iface_name: gretap_{{ index_key }}_{{ hostvars[item]['index_key'] }}
-  loop: "{{ groups[ansible_limit] }}"
-  when: inventory_hostname != item
-  register: gretap_bridged
+# root@host1# lxc network attach-profile br0 default eth0
+# Then create the bridge on host2:
 
-- name: Connect gretap tunnel to {{ lookup_bridge }} bridge
-  command: brctl addif {{ lookup_bridge }} {{ iface_name }}
-  vars:
-    iface_name: gretap_{{ index_key }}_{{ hostvars[item]['index_key'] }}
-  loop: "{{ groups[ansible_limit] }}"
-  loop_control:
-    index_var: idx
-  when: >-
-    inventory_hostname != item
-    and gretap_bridged.results[idx].stdout == ""
+# root@host2# lxc network create br0 tunnel.lan.protocol=vxlan ipv4.address=none ipv4.address=none tunnel.lan.protocol=vxlan
+# Attach the bridge to eth0 in the default profile:
+
+# root@host2# lxc network attach-profile br0 default eth0
+
+
+# - name: Create vxlan tunnels (all-to-all)
+#   command: >-
+#     ip link add {{ iface_name }} type vxlan
+#     id {{vni_name}} remote {{ hostvars[item]['ipv4_address_private'] }}
+#     local {{ ipv4_address_private }} dev {{ lookup_bridge }} dstport 4789
+#   vars:
+#     iface_name: vxlan_{{ index_key }}_{{ hostvars[item]['index_key'] }}
+#     vni_name: "{{ index_key }}{{ hostvars[item]['index_key'] }}"
+#   args:
+#     creates: /sys/class/net/{{ iface_name }}
+#   loop: "{{ groups[ansible_limit] }}"
+#   when: >-
+#     vars["ansible_" + iface_name] is not defined
+#     and inventory_hostname != item
+
+
+# - name: Bring gretap tunnel up
+#   command: ip link set dev {{ iface_name }} up
+#   vars:
+#     iface_name: gretap_{{ index_key }}_{{ hostvars[item]['index_key'] }}
+#   loop: "{{ groups[ansible_limit] }}"
+#   when: >-
+#     (vars["ansible_" + iface_name] is not defined
+#     or vars["ansible_" + iface_name].active != true)
+#     and inventory_hostname != item
+
+# - name: Check if vxlan tunnels have already been bridged.
+#   shell: ip link show {{ iface_name }} | grep "master {{ lookup_bridge }}"
+#   vars:
+#     iface_name: vxlan_{{ index_key }}_{{ hostvars[item]['index_key'] }}
+#   loop: "{{ groups[ansible_limit] }}"
+#   when: inventory_hostname != item
+#   register: vxlan_bridged
+#   ignore_errors: true
+
+# - name: Connect vxlan tunnel to {{ lookup_bridge }} bridge
+#   command: brctl addif {{ lookup_bridge }} {{ iface_name }}
+#   vars:
+#     iface_name: vxlan_{{ index_key }}_{{ hostvars[item]['index_key'] }}
+#   loop: "{{ groups[ansible_limit] }}"
+#   loop_control:
+#     index_var: idx
+#   when: >-
+#     inventory_hostname != item
+#     and vxlan_bridged.results[idx].stdout == ""
+
+# - name: Bring vxlan tunnel up
+#   command: ip link set dev {{ iface_name }} up
+#   vars:
+#     iface_name: vxlan_{{ index_key }}_{{ hostvars[item]['index_key'] }}
+#   loop: "{{ groups[ansible_limit] }}"
+#   when: >-
+#     (vars["ansible_" + iface_name] is not defined
+#     or vars["ansible_" + iface_name].active != true)
+#     and inventory_hostname != item
+
+# - name: Check if gretap tunnels have already been bridged.
+#   shell: ip link show {{ iface_name }} | grep "master {{ lookup_bridge }}"
+#   vars:
+#     iface_name: gretap_{{ index_key }}_{{ hostvars[item]['index_key'] }}
+#   loop: "{{ groups[ansible_limit] }}"
+#   when: inventory_hostname != item
+#   register: gretap_bridged
+#   ignore_errors: true
+
+# - name: Connect gretap tunnel to {{ lookup_bridge }} bridge
+#   command: brctl addif {{ lookup_bridge }} {{ iface_name }}
+#   vars:
+#     iface_name: gretap_{{ index_key }}_{{ hostvars[item]['index_key'] }}
+#   loop: "{{ groups[ansible_limit] }}"
+#   loop_control:
+#     index_var: idx
+#   when: >-
+#     inventory_hostname != item
+#     and gretap_bridged.results[idx].stdout == ""
+
 
 - name: Create ovn_uplink_interface veth pair {{ ovn_uplink_interface }} and {{ ovn_uplink_interface }}p
   command: ip link add {{ ovn_uplink_interface }} type veth peer name {{ ovn_uplink_interface }}p
@@ -171,6 +277,9 @@
 
 - name: Add ovn_uplink_interface {{ ovn_uplink_interface }} to {{ lookup_bridge }} bridge
   command: ip link set {{ ovn_uplink_interface }}p master {{ lookup_bridge }}
+  when: >-
+    (vars["ansible_" + ovn_uplink_interface] is not defined
+    or vars["ansible_" + ovn_uplink_interface].active != true)
 
 - name: Bring "{{ ovn_uplink_interface }}" interface up
   command: ip link set dev {{ ovn_uplink_interface }} up
@@ -195,17 +304,17 @@
 - name: Set preseed file location
   run_once: true
   debug:
-    msg: infra-{{group_name}}/preseed.yml
+    msg: infra-{{ansible_limit}}/preseed.yml
   register: preseed_file
 
-- name: add lookup_subnet to preseed.yml using private ip subnet
+- name: add lookup_subnet and interface to preseed.yml using private ip subnet
   delegate_to: localhost
   run_once: true
   when: inventory_hostname == ansible_play_hosts[0]
   shell: |-
     touch {{preseed_file.msg}}
-    yq -i '.lookup_subnet = "{{ lookup_subnet }}"'\
-      {{preseed_file.msg}}
+    yq -i '.lookup_subnet = "{{ ipv4_address_private_cidr }}" |
+    .lookup_interface = "{{ lookup_bridge }}"' {{preseed_file.msg}}
   become: false
 
 - name: Set ovn config

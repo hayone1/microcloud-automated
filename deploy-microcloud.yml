@@ -16,6 +16,8 @@
       tags: [init]
     - role: microcloud-install
       tags: [install]
+    - role: rollback
+      tags: [rollback]
 # Associate further roles to servers in specific group in this file...
 
 # ...

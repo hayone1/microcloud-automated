@@ -26,8 +26,9 @@ ovn_uplink_interface: eth9
 # location where various packages will be installed
 package_dir: /usr/bin
 
-# be careful with these values, ensure they are correct
+# be careful with the hannelvalues, ensure they are correct
 # or the setup will fail without a proper indication as to why
+snapd_channel: latest/stable
 lxd_channel: 5.21/stable
 microceph_channel: quincy/stable
 microovn_channel: 22.03/stable
