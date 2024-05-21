@@ -45,6 +45,9 @@
     dest: /tmp/infra-{{ansible_limit}}-preseed.yml
   # register: preseed_file
 
+# - name: Kill process using port 9443
+#   command: fuser -k 9443/tcp
+
 - name: Initialize microcloud (only on first host)
   # when: inventory_hostname == ansible_play_hosts[0]
   delegate_to: '{{ansible_play_hosts[0]}}'
@@ -54,9 +57,9 @@
   # environment:
   #   PRESEED: "{{ lookup('file', preseed_file.msg) }}"
   register: init_result
-  retries: 5
-  delay: 10
-  until: init_result is not failed
+  # retries: 5
+  # delay: 5
+  # until: init_result is not failed
 - debug:
     msg: '{{init_result.stdout_lines}}'
 

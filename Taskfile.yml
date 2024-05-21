@@ -89,7 +89,7 @@ tasks:
         cmd: echo {{.ITEM}}
 
   infra-create-all:
-    desc: creates all infra resources that has been defined.
+    desc: creates all infra resources across all groups.
     vars:
       GROUPS:
         sh: yq '.groups | join(" ")' "./group_vars/all.yml"
@@ -331,18 +331,22 @@ tasks:
 
 ############# Deploy All #############
   microcloud-*-up:
-    desc: Deploy everything needed to run microcloud
+    desc: |-
+      Deploy everything needed to run deploy-microcloud.
+      eg. task microcloud-dev-up
     vars:
       GROUP: '{{index .MATCH 0}}'
     cmds:
       - task infra-update-{{.GROUP}} -- --auto-approve
-      - task run-deploy-init-{{.GROUP}}
-      - task run-deploy-install-{{.GROUP}}
+      - task deploy-init-{{.GROUP}}
+      - task deploy-install-{{.GROUP}}
 ############# Deploy All #############
 
 ############# Destroy All #############
   microcloud-*-down:
-    desc: Deploy everything needed to run microcloud
+    desc: |-
+      Destroy everything created by this project.
+      eg. task microcloud-dev-up
     vars:
       GROUP: '{{index .MATCH 0}}'
     cmds:

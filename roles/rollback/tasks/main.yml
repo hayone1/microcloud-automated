@@ -9,7 +9,7 @@
   command: ip link delete {{ lookup_bridge }}
   ignore_errors: true
 
-- name: lxc network delete {{ lookup_bridge }}
+- name: delete lxc network delete {{ lookup_bridge }}
   command: lxc network delete {{ lookup_bridge }}
   ignore_errors: true
 
@@ -29,7 +29,15 @@
 - name: Delete gretap tunnels (all-to-all)
   command: ip link delete {{ iface_name }}
   vars:
-    iface_name: gretap_{{ index_key }}_{{ hostvars[item]['index_key'] }}
+    iface_name: gre-{{ index_key }}{{ hostvars[item]['index_key'] }}
+  loop: "{{ groups[ansible_limit] }}"
+  when: inventory_hostname != item
+  ignore_errors: true
+
+- name: Delete lxc tunnels (all-to-all)
+  command: ip link delete {{ iface_name }}
+  vars:
+    iface_name: l{{ index_key }}{{ hostvars[item]['index_key'] }}
   loop: "{{ groups[ansible_limit] }}"
   when: inventory_hostname != item
   ignore_errors: true

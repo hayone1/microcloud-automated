@@ -14,11 +14,13 @@ groups: # can only be in all.yml
 # Values here can be the all.yml or in a group specific yml
 # and should generally be fine with their defaults.
 ######################################
-# The below virtual multicast network bridge and tunnel will be created to 
+# The below details will be used to create a virtual multicast network bridge and tunnel will be created to 
 # allow microcloud locate other servers with mDNS
-lookup_subnet: 172.16.0.0/24 # bridge
-# lookup_tunnel_subnet: 172.16.1.0/24
+
+lookup_subnet: 192.168.0.5/16 # bridge start ip subnet (preferably don't start with .0)
+# 172.25.0.1/16
 lookup_bridge: mcbr_bridge # only alphanumbric and underscore
+lookup_bridge_mac_prefix: '52:54:00'
 # `ovn_uplink_interface` is optional and represents the name of the interface
 # that will be created and reserved for use with OVN
 ovn_uplink_interface: eth9
@@ -39,6 +41,7 @@ wipe_local: true
 wipe_ceph: true
 
 # `ovn` is optional and represents the OVN & uplink network configuration for LXD.
+# honestly, I don't thinnk you'd need it
 # ovn:
 #   ipv4_gateway: 192.0.2.1/24
 #   ipv4_range: 192.0.2.100-192.0.2.254

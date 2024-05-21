@@ -4,9 +4,12 @@
 - name: Gather the package facts
   package_facts:
     manager: auto
-- name: Set index based on inventory hostname
-  set_fact:
-    index: "{{ ansible_play_hosts.index(inventory_hostname) | int }}"
+# - name: Set index based on inventory hostname
+#   set_fact:
+#     index: "{{ ansible_play_hosts.index(inventory_hostname) | int }}"
+# - name: Generate random MAC address with prefix
+#   set_fact:
+#     random_mac: "{{ lookup_bridge_mac_prefix | community.general.random_mac }}"
 # - name: Print the package facts
 #   ansible.builtin.debug:
 #     var: ansible_facts.packages
@@ -40,7 +43,6 @@
   #   state: present
   #   channel: '{{snapd_channel}}'
   command: snap refresh snapd --channel={{snapd_channel}}
-  # tags: ["prerequisite"]
 
 - name: Install core snap
   when: "'snapd' not in ansible_facts.packages"
@@ -54,7 +56,6 @@
   apt:
     name: bridge-utils
     state: present
-    # update_cache: yes
 
 - name: Install net-tools
   when: "'net-tools' not in ansible_facts.packages"
@@ -63,7 +64,7 @@
     state: present
     # update_cache: yes
 
-- name: Install install network-manager
+- name: Install network-manager
   when: "'network-manager' not in ansible_facts.packages"
   apt:
     name: network-manager
@@ -86,204 +87,106 @@
   command: ip addr del {{ secondary_ip.stdout }} dev eth0
   when: secondary_ip.stdout != ""
 
-- name: Check if bridge already exists
-  command: |
-    lxc network show {{ lookup_bridge }}
-  register: bridge_check
-  ignore_errors: true
+# - name: Check if bridge already exists
+#   command: |
+#     lxc network show {{ lookup_bridge }}
+#   register: bridge_check
+#   ignore_errors: true
 
-- name: Create bridge interface {{ lookup_bridge }}
-  delegate_to: '{{ansible_play_hosts[0]}}'
-  run_once: true
-  when: bridge_check.rc != 0
-  #   - >-
-  #     vars["ansible_" + lookup_bridge] is not defined
-  #     or vars["ansible_" + lookup_bridge].active != true
-  # command: lxc network create {{ lookup_bridge }}
-  command: >-
-    lxc network create {{ lookup_bridge }} tunnel.lan.protocol=vxlan
-  # command: >-
-  #   lxc network create {{ lookup_bridge }}
-  #   ipv6.address=none
-  #   ipv4.address={{ lookup_subnet |
-  #   ansible.utils.next_nth_usable(index | int + 1) }}/{{ bridge_netmask }}
-  #   ipv4.nat=true
-  # command: brctl addbr {{ lookup_bridge }}
-  # args:
-  #   creates: /sys/class/net/{{ lookup_bridge }}
-  vars:
-    index: '{{ansible_play_hosts.index(inventory_hostname)}}'
-    bridge_netmask: "{{ lookup_subnet | ansible.utils.ipaddr('prefix')}}"
-
-
-- name: Create bridge interface on other hosts
-  when: (bridge_check.rc != 0) and inventory_hostname != ansible_play_hosts[0]
-  command: >-
-    lxc network create {{ lookup_bridge }}
-    tunnel.lan.protocol=vxlan ipv4.address=none
-    ipv4.address=none tunnel.lan.protocol=vxlan
-  # loop: "{{ groups[ansible_limit] }}"
-
-- name: Check if bridge is already attached to eth1
-  command: lxc profile show default
-  register: lxc_profile
-
-- name: Attach bridge to eth1 interface
-  when: "'eth1' not in lxc_profile.stdout"
+- name: Create lxc bridge interface {{ lookup_bridge }}
   # delegate_to: '{{ansible_play_hosts[0]}}'
   # run_once: true
-  command: lxc network attach-profile {{ lookup_bridge }} default eth1
-
+  when: vars["ansible_" + lookup_bridge] is not defined
+  # when: bridge_check.rc != 0
+  command: >-
+    lxc network create {{ lookup_bridge }}
+    ipv4.address={{ lookup_subnet |
+    ansible.utils.next_nth_usable(host_index | int) }}/{{ bridge_netmask }}
+    ipv4.nat=true
+    ipv6.nat=true
+  # command: brctl addbr {{ lookup_bridge }}
+  args:
+    creates: /sys/class/net/{{ lookup_bridge }}
+  vars:
+    bridge_netmask: "{{ lookup_subnet | ansible.utils.ipaddr('prefix')}}"
+    host_index: "{{ index_key }}"
 
 # - name: Set default FORWARD policy to DROP in ebtables
 #   command: ebtables -P FORWARD DROP
 
-# - name: >-
-#     Set firewall rule to DROP packets in
-#     FORWARD chain(ebtables replacement)
-#   when: 
-#     - >-
-#       vars["ansible_" + lookup_bridge] is not defined
-#       or vars["ansible_" + lookup_bridge].active != true
-#   iptables:
-#     chain: FORWARD
-#     jump: DROP
-
-# - name: Assign IP address to {{ lookup_bridge }} interface bridge
-#   when: 
-#     - >-
-#       vars["ansible_" + lookup_bridge] is not defined
-#       or vars["ansible_" + lookup_bridge].ipv4.address is undefined
+# - name: Create gre tunnels (all-to-all)
 #   command: >-
-#     ip addr add
-#     {{ lookup_subnet | ansible.utils.next_nth_usable(index | int + 1) }}/{{ bridge_netmask }}
-#     dev {{ lookup_bridge }}
+#     ip link add {{peer_grename | sort | join()}} type gretap
+#     local {{ ipv4_address_private }}
+#     remote {{ hostvars[item]['ipv4_address_private'] }}
 #   vars:
-#     index: '{{ansible_play_hosts.index(inventory_hostname)}}'
-#     # bridge_ip: "{{ lookup_subnet | ansible.utils.next_nth_usable(index) }}"
-#     bridge_netmask: "{{ lookup_subnet | ansible.utils.ipaddr('prefix')}}"
-
-# - name: Bring {{ lookup_bridge }} interface bridge up
-#   when:
-#     - vars["ansible_" + lookup_bridge] is not defined
-#       or vars["ansible_" + lookup_bridge].active != true
-#   command: ip link set dev {{ lookup_bridge }} up
-
-# - name: Create gretap tunnels (all-to-all)
-#   nmcli:
-#     type: gre
-#     conn_name: "{{ iface_name }}"
-#     ifname: "{{ iface_name }}"
-#     ip_tunnel_dev: "{{ lookup_bridge }}"
-#     ip_tunnel_local: "{{ ipv4_address_private }}"
-#     ip_tunnel_remote: "{{ hostvars[item]['ipv4_address_private'] }}"
-#     state: present
-
-# - name: Create gretap tunnels (all-to-all)
-#   command: |-
-#     ip link add {{ iface_name }} type gretap local {{ ipv4_address_private }} remote {{ hostvars[item]['ipv4_address_private'] }}
-#   vars:
-#     iface_name: gretap_{{ index_key }}_{{ hostvars[item]['index_key'] }}
+#     peer_grename: "gre-{{ index_key }}{{ hostvars[item]['index_key'] }}"
 #   args:
-#     creates: /sys/class/net/{{ iface_name }}
-#   loop: "{{ groups[ansible_limit] }}"
-#   when: >-
-#     vars["ansible_" + iface_name] is not defined
-#     and inventory_hostname != item
-#   # register: gretap_result
-
-#To-DO
-# try these commands
-# First create the bridge on host1:
-
-# root@host1# lxc network create br0 tunnel.lan.protocol=vxlan
-# Now attach the bridge to eth1 in the default profile:
-
-# root@host1# lxc network attach-profile br0 default eth1
-# Then create the bridge on host2:
-
-# root@host2# lxc network create br0 tunnel.lan.protocol=vxlan ipv4.address=none ipv4.address=none tunnel.lan.protocol=vxlan
-# Attach the bridge to eth1 in the default profile:
-
-# root@host2# lxc network attach-profile br0 default eth1
-
-
-# - name: Create vxlan tunnels (all-to-all)
-#   command: >-
-#     ip link add {{ iface_name }} type vxlan
-#     id {{vni_name}} remote {{ hostvars[item]['ipv4_address_private'] }}
-#     local {{ ipv4_address_private }} dev {{ lookup_bridge }} dstport 4789
-#   vars:
-#     iface_name: vxlan_{{ index_key }}_{{ hostvars[item]['index_key'] }}
-#     vni_name: "{{ index_key }}{{ hostvars[item]['index_key'] }}"
-#   args:
-#     creates: /sys/class/net/{{ iface_name }}
-#   loop: "{{ groups[ansible_limit] }}"
-#   when: >-
-#     vars["ansible_" + iface_name] is not defined
-#     and inventory_hostname != item
-
-
-# - name: Bring gretap tunnel up
-#   command: ip link set dev {{ iface_name }} up
-#   vars:
-#     iface_name: gretap_{{ index_key }}_{{ hostvars[item]['index_key'] }}
-#   loop: "{{ groups[ansible_limit] }}"
-#   when: >-
-#     (vars["ansible_" + iface_name] is not defined
-#     or vars["ansible_" + iface_name].active != true)
-#     and inventory_hostname != item
-
-# - name: Check if vxlan tunnels have already been bridged.
-#   shell: ip link show {{ iface_name }} | grep "master {{ lookup_bridge }}"
-#   vars:
-#     iface_name: vxlan_{{ index_key }}_{{ hostvars[item]['index_key'] }}
+#     creates: /sys/class/net/{{peer_grename | sort | join()}}
 #   loop: "{{ groups[ansible_limit] }}"
 #   when: inventory_hostname != item
-#   register: vxlan_bridged
-#   ignore_errors: true
-
-# - name: Connect vxlan tunnel to {{ lookup_bridge }} bridge
-#   command: brctl addif {{ lookup_bridge }} {{ iface_name }}
+   
+# - name: Bridge gre tunnels (all-to-all)
+#   command: brctl addif {{ lookup_bridge }} {{peer_grename | sort | join()}}
 #   vars:
-#     iface_name: vxlan_{{ index_key }}_{{ hostvars[item]['index_key'] }}
-#   loop: "{{ groups[ansible_limit] }}"
-#   loop_control:
-#     index_var: idx
-#   when: >-
-#     inventory_hostname != item
-#     and vxlan_bridged.results[idx].stdout == ""
-
-# - name: Bring vxlan tunnel up
-#   command: ip link set dev {{ iface_name }} up
-#   vars:
-#     iface_name: vxlan_{{ index_key }}_{{ hostvars[item]['index_key'] }}
+#     peer_grename: "gre-{{ index_key }}{{ hostvars[item]['index_key'] }}"
+#   args:
+#     creates: /sys/class/net/{{peer_grename | sort | join()}}
 #   loop: "{{ groups[ansible_limit] }}"
 #   when: >-
-#     (vars["ansible_" + iface_name] is not defined
-#     or vars["ansible_" + iface_name].active != true)
+#     (vars["ansible_" + peer_grename] is not defined
+#     or vars["ansible_" + peer_grename].active != true)
 #     and inventory_hostname != item
 
-# - name: Check if gretap tunnels have already been bridged.
-#   shell: ip link show {{ iface_name }} | grep "master {{ lookup_bridge }}"
+# - name: Bring up tunnels (all-to-all)
+#   command: ip link set dev {{peer_grename | sort | join()}} up
 #   vars:
-#     iface_name: gretap_{{ index_key }}_{{ hostvars[item]['index_key'] }}
+#     peer_grename: "gre-{{ index_key }}{{ hostvars[item]['index_key'] }}"
 #   loop: "{{ groups[ansible_limit] }}"
-#   when: inventory_hostname != item
-#   register: gretap_bridged
-#   ignore_errors: true
-
-# - name: Connect gretap tunnel to {{ lookup_bridge }} bridge
-#   command: brctl addif {{ lookup_bridge }} {{ iface_name }}
-#   vars:
-#     iface_name: gretap_{{ index_key }}_{{ hostvars[item]['index_key'] }}
-#   loop: "{{ groups[ansible_limit] }}"
-#   loop_control:
-#     index_var: idx
 #   when: >-
-#     inventory_hostname != item
-#     and gretap_bridged.results[idx].stdout == ""
+#     (vars["ansible_" + peer_grename] is not defined
+#     or vars["ansible_" + peer_grename].active != true)
+#     and inventory_hostname != item
 
+- name: Create lxc gre tunnels (all-to-all)
+  shell: |-
+    # lxc network set {{ lookup_bridge }} bridge.hwaddr {{random_mac}}
+    lxc network set {{ lookup_bridge }} tunnel.{{peer_grename | sort | join()}}.protocol gre
+    lxc network set {{ lookup_bridge }} tunnel.{{peer_grename | sort | join()}}.id {{peer_grename | sort | join()}}
+    # lxc network set {{ lookup_bridge }} tunnel.{{peer_grename | sort | join()}}.interface eth1
+    # lxc network set {{ lookup_bridge }} tunnel.{{peer_grename | sort | join()}}.port 4789
+    lxc network set {{ lookup_bridge }} tunnel.{{peer_grename | sort | join()}}.local {{ ipv4_address_private }}
+    lxc network set {{ lookup_bridge }} tunnel.{{peer_grename | sort | join()}}.remote {{ hostvars[item]['ipv4_address_private'] }}
+  vars:
+    iface_id: "1{{ index_key }}{{ hostvars[item]['index_key'] }}"
+    peer_hostname: "{{hostvars[item]['ansible_nodename']}}"
+    peer_grename: "1{{ index_key }}{{ hostvars[item]['index_key'] }}"
+    random_mac: "{{ lookup_bridge_mac_prefix | community.general.random_mac }}"
+  args:
+    creates: /sys/class/net/{{ lookup_bridge }}-{{ peer_grename }}
+  loop: "{{ groups[ansible_limit] }}"
+  when: inventory_hostname != item and vars["ansible_" + lookup_bridge + "-" + peer_grename] is not defined
+  #   vars["ansible_" + iface_name] is not defined
+  #   and inventory_hostname != item
+
+
+- name: Ping test all-to-all network connectivity
+  command: |-
+    ping -c 2 {{ lookup_subnet | ansible.utils.next_nth_usable(host_index | int) }}
+  vars:
+    host_index: "{{ hostvars[item]['index_key'] }}"
+  loop: "{{ groups[ansible_limit] }}"
+  # when: inventory_hostname != item
+  register: ping_results
+  retries: 3
+  delay: 3
+  until: ping_results.rc == 0
+
+# - name: Test that ping tests passed
+#   fail:
+#     msg: "Ping test failed: {{item.stdout_lines}}"
+#   when: item.rc != 0
+#   loop: "{{ping_results.results}}"
 
 - name: Create ovn_uplink_interface veth pair {{ ovn_uplink_interface }} and {{ ovn_uplink_interface }}p
   command: ip link add {{ ovn_uplink_interface }} type veth peer name {{ ovn_uplink_interface }}p
@@ -291,7 +194,7 @@
     creates: /sys/class/net/{{ ovn_uplink_interface }}
   when: vars["ansible_" + ovn_uplink_interface] is not defined
 
-- name: Add ovn_uplink_interface {{ ovn_uplink_interface }} to {{ lookup_bridge }} bridge
+- name: Add ovn_uplink_interface {{ ovn_uplink_interface }} to bridge {{ lookup_bridge }}
   command: ip link set {{ ovn_uplink_interface }}p master {{ lookup_bridge }}
   when: >-
     (vars["ansible_" + ovn_uplink_interface] is not defined
@@ -329,9 +232,13 @@
   when: inventory_hostname == ansible_play_hosts[0]
   shell: |-
     touch {{preseed_file.msg}}
-    yq -i '.lookup_subnet = "{{ ipv4_address_private_cidr }}" |
+    yq -i '.lookup_subnet = "{{ lookup_subnet | ansible.utils.next_nth_usable(host_index | int) }}/{{ bridge_netmask }}" |
     .lookup_interface = "{{ lookup_bridge }}"' {{preseed_file.msg}}
   become: false
+    # yq -i '.lookup_subnet = "{{ ipv4_address_private_cidr }}" |
+  vars:
+    bridge_netmask: "{{ lookup_subnet | ansible.utils.ipaddr('prefix')}}"
+    host_index: "{{ hostvars[inventory_hostname]['index_key'] }}"
 
 - name: Set ovn config
   when: ovn is defined
@@ -339,6 +246,12 @@
   local_action: command yq -i --prettyPrint '.ovn = env(ovn)' {{preseed_file.msg}}
   environment:
     ovn: "{{ovn}}"
+  become: false
+
+- name: Remove ovn config
+  when: ovn is not defined
+  run_once: true
+  local_action: command yq -i --prettyPrint 'del(.ovn)' {{preseed_file.msg}}
   become: false
   
 # - name: Get remote hostname
@@ -356,7 +269,7 @@
     yq -i --prettyPrint 'del(.systems[] | select(.name == "{{ansible_nodename}}")) |
     .systems += [{"name": "{{ansible_nodename}}",
     "ovn_uplink_interface": "{{ovn_uplink_interface}}",
-    "storage": env(host_storage)}] | del(.. | select(tag == "!!map" and length == 0))'
+    "storage": env(host_storage)}]'
     {{preseed_file.msg}}
   vars:
     storage:
@@ -369,6 +282,16 @@
     # current_remote: '{{current_remote}}'
   environment:
     host_storage: '{{storage}}'
+  become: false
+
+- name: Remove empty entries from preseed
+  delegate_to: localhost
+  command: >-
+    yq --inplace 'with(.systems.[];
+      (select(.storage.local.path == "")) |= del(.storage.local) |
+      (select(.storage.ceph[]?.path == "")) |= del(.storage.ceph)|
+      del(.. | select(tag == "!!map" and length == 0)))'
+    {{preseed_file.msg}}
   become: false
 
 
