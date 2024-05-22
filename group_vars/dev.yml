@@ -28,7 +28,7 @@ infra_providers:
   #       hostname: orangepi800
   digital_ocean:
     quantity: 3
-    size: micro
+    size: nano
     region: "nyc3"
     os: ubuntu-22-04-x64
     custom_size: ['s-1vcpu-512mb-10gb'] # region sensitive 

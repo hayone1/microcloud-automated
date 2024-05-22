@@ -1,10 +1,6 @@
 ---
 # Add further tasks for the common role (applied to all servers) to this playbook...
 
-# - name: Set index based on inventory hostname
-#   set_fact:
-#     index: "{{ ansible_play_hosts.index(inventory_hostname) | int }}"
-
 - name: delete interface bridge {{ lookup_bridge }}
   command: ip link delete {{ lookup_bridge }}
   ignore_errors: true

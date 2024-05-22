@@ -8,13 +8,6 @@
 #     name: "*"
 #     state: present
 
-- name: Install LXD snap (channel - {{lxd_channel}})
-  # when: "'lxd' not in ansible_facts.packages"
-  snap:
-    name: lxd
-    channel: '{{lxd_channel}}'
-    classic: no  # Avoid classic confinement (recommended)
-
 - name: Install Microceph snap (channel - '{{microceph_channel}}')
   # when: "'microceph' not in ansible_facts.packages"
   snap:

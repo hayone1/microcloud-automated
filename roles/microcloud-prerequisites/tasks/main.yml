@@ -62,13 +62,49 @@
   apt:
     name: net-tools
     state: present
-    # update_cache: yes
 
 - name: Install network-manager
   when: "'network-manager' not in ansible_facts.packages"
   apt:
     name: network-manager
     state: present
+
+- name: Uninstall existing apt LXD
+  # when: "'lxd' in ansible_facts.packages"
+  apt:
+    name: lxd
+    state: absent
+
+- name: Uninstall existing apt lxd-client
+  # when: "'lxd-client' in ansible_facts.packages"
+  apt:
+    name: lxd-client
+    state: absent
+
+- name: Install LXD snap (channel - {{lxd_channel}})
+  # when: "'lxd' not in ansible_facts.packages"
+  snap:
+    name: lxd
+    channel: '{{lxd_channel}}'
+    classic: no  # Avoid classic confinement (recommended)
+
+- name: Install httpry
+  when: "'httpry' not in ansible_facts.packages"
+  apt:
+    name: httpry
+    state: present
+
+- name: Install tcpflow
+  when: "'tcpflow' not in ansible_facts.packages"
+  apt:
+    name: tcpflow
+    state: present
+
+- name: Set ufw policy to allow
+  ufw:
+    state: disabled
+    policy: allow
+
 
 - name: Check if secondary ip exists on eth0
   shell: |
@@ -94,8 +130,6 @@
 #   ignore_errors: true
 
 - name: Create lxc bridge interface {{ lookup_bridge }}
-  # delegate_to: '{{ansible_play_hosts[0]}}'
-  # run_once: true
   when: vars["ansible_" + lookup_bridge] is not defined
   # when: bridge_check.rc != 0
   command: >-
@@ -104,7 +138,6 @@
     ansible.utils.next_nth_usable(host_index | int) }}/{{ bridge_netmask }}
     ipv4.nat=true
     ipv6.nat=true
-  # command: brctl addbr {{ lookup_bridge }}
   args:
     creates: /sys/class/net/{{ lookup_bridge }}
   vars:
@@ -114,46 +147,13 @@
 # - name: Set default FORWARD policy to DROP in ebtables
 #   command: ebtables -P FORWARD DROP
 
-# - name: Create gre tunnels (all-to-all)
-#   command: >-
-#     ip link add {{peer_grename | sort | join()}} type gretap
-#     local {{ ipv4_address_private }}
-#     remote {{ hostvars[item]['ipv4_address_private'] }}
-#   vars:
-#     peer_grename: "gre-{{ index_key }}{{ hostvars[item]['index_key'] }}"
-#   args:
-#     creates: /sys/class/net/{{peer_grename | sort | join()}}
-#   loop: "{{ groups[ansible_limit] }}"
-#   when: inventory_hostname != item
-   
-# - name: Bridge gre tunnels (all-to-all)
-#   command: brctl addif {{ lookup_bridge }} {{peer_grename | sort | join()}}
-#   vars:
-#     peer_grename: "gre-{{ index_key }}{{ hostvars[item]['index_key'] }}"
-#   args:
-#     creates: /sys/class/net/{{peer_grename | sort | join()}}
-#   loop: "{{ groups[ansible_limit] }}"
-#   when: >-
-#     (vars["ansible_" + peer_grename] is not defined
-#     or vars["ansible_" + peer_grename].active != true)
-#     and inventory_hostname != item
-
-# - name: Bring up tunnels (all-to-all)
-#   command: ip link set dev {{peer_grename | sort | join()}} up
-#   vars:
-#     peer_grename: "gre-{{ index_key }}{{ hostvars[item]['index_key'] }}"
-#   loop: "{{ groups[ansible_limit] }}"
-#   when: >-
-#     (vars["ansible_" + peer_grename] is not defined
-#     or vars["ansible_" + peer_grename].active != true)
-#     and inventory_hostname != item
 
 - name: Create lxc gre tunnels (all-to-all)
   shell: |-
     # lxc network set {{ lookup_bridge }} bridge.hwaddr {{random_mac}}
     lxc network set {{ lookup_bridge }} tunnel.{{peer_grename | sort | join()}}.protocol gre
     lxc network set {{ lookup_bridge }} tunnel.{{peer_grename | sort | join()}}.id {{peer_grename | sort | join()}}
-    # lxc network set {{ lookup_bridge }} tunnel.{{peer_grename | sort | join()}}.interface eth1
+    lxc network set {{ lookup_bridge }} tunnel.{{peer_grename | sort | join()}}.interface eth1
     # lxc network set {{ lookup_bridge }} tunnel.{{peer_grename | sort | join()}}.port 4789
     lxc network set {{ lookup_bridge }} tunnel.{{peer_grename | sort | join()}}.local {{ ipv4_address_private }}
     lxc network set {{ lookup_bridge }} tunnel.{{peer_grename | sort | join()}}.remote {{ hostvars[item]['ipv4_address_private'] }}
@@ -235,6 +235,7 @@
     yq -i '.lookup_subnet = "{{ lookup_subnet | ansible.utils.next_nth_usable(host_index | int) }}/{{ bridge_netmask }}" |
     .lookup_interface = "{{ lookup_bridge }}"' {{preseed_file.msg}}
   become: false
+    # yq -i '.lookup_subnet = "{{ lookup_subnet | ansible.utils.next_nth_usable(host_index | int) }}/{{ bridge_netmask }}" |
     # yq -i '.lookup_subnet = "{{ ipv4_address_private_cidr }}" |
   vars:
     bridge_netmask: "{{ lookup_subnet | ansible.utils.ipaddr('prefix')}}"
