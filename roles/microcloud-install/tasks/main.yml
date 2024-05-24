@@ -41,45 +41,25 @@
 # - name: Kill process using port 9443
 #   command: fuser -k 9443/tcp
 
-- name: Initialize microcloud (only on first host)
-  # when: inventory_hostname == ansible_play_hosts[0]
-  delegate_to: '{{ansible_play_hosts[0]}}'
-  run_once: true
-  shell:
-    cmd: cat /tmp/infra-{{ansible_limit}}-preseed.yml | microcloud init --preseed
-  # environment:
-  #   PRESEED: "{{ lookup('file', preseed_file.msg) }}"
-  register: init_result
-  # retries: 5
-  # delay: 5
-  # until: init_result is not failed
-- debug:
-    msg: '{{init_result.stdout_lines}}'
+# - name: Initialize microcloud (only on first host)
+#   # when: inventory_hostname == ansible_play_hosts[0]
+#   delegate_to: '{{ansible_play_hosts[0]}}'
+#   run_once: true
+#   shell:
+#     cmd: cat /tmp/infra-{{ansible_limit}}-preseed.yml | microcloud init --preseed
+#   register: init_result
+#   ignore_errors: true
+#   # retries: 5
+#   # delay: 5
+#   # until: init_result is not failed
+# - debug:
+#     msg: '{{init_result.stdout_lines}}'
 
-# should be enabled by default
-# - name: Enable LXD UI via snap
+# - name: Show LXC Cluster
 #   when: init_result.rc == 0
 #   delegate_to: '{{ansible_play_hosts[0]}}'
 #   run_once: true
-#   snap:
-#     name: lxd
-#     state: set
-#     options:
-#       ui.enable: true
-
-# - name: Reload LXD daemon
-#   when: init_result.rc == 0
-#   delegate_to: '{{ansible_play_hosts[0]}}'
-#   run_once: true
-#   systemd:
-#     name: snap.lxd.daemon
-#     state: reloaded
-
-- name: Show LXC Cluster
-  when: init_result.rc == 0
-  delegate_to: '{{ansible_play_hosts[0]}}'
-  run_once: true
-  command: lxc cluster list
-  register: lxc_cluster
-- debug:
-    msg: "{{lxc_cluster}}"
+#   command: lxc cluster list
+#   register: lxc_cluster
+# - debug:
+#     msg: "{{lxc_cluster}}"

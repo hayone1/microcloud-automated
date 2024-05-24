@@ -78,7 +78,7 @@ locals {
 }
 
 ##### provider specific variables ##### 
-variable "provider_token" {
+variable "DO_PAT" {
   type        = string
   description = "Provider specific API token/key used for TF authentication."
 }

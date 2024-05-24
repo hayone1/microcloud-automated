@@ -12,7 +12,7 @@ terraform {
 }
 
 provider "digitalocean" {
-  token = var.provider_token
+  token = var.DO_PAT
 }
 
 provider "ssh" {}

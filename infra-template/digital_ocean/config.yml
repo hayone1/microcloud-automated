@@ -1,4 +1,6 @@
 # list of environment variables that needs to be set for this
 # terraform module to work properly
+
+# always prefix it with TF_VAR
 required_env:
-  - DO_PAT
+  - TF_VAR_DO_PAT

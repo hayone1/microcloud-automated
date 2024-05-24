@@ -87,9 +87,9 @@ resource "ssh_resource" "hosts-data" {
         ipv4_address=$(hostname -I | awk '{print $1}') &&
         ipv4_address_iface=$(ip -o addr show | grep "inet $ipv4_address" | awk '{print $2}') &&
         ipv4_address_private='${digitalocean_droplet.microcloud-droplet[count.index].ipv4_address_private}' &&
-        primary_interface='${digitalocean_droplet.microcloud-droplet[count.index].ipv4_address_private}' &&
+        ipv4_address_private_iface=$(ip -o addr show | grep "inet $ipv4_address_private" | awk '{print $2}') &&
         ipv4_address_private_cidr=$(ip -o addr show | grep "inet $ipv4_address_private" | awk '{print $4}') &&
-        echo -e "hostname: $hostname\nipv4_address: $ipv4_address\nipv4_address_iface: $ipv4_address_iface\nipv4_address_private: $ipv4_address_private\nindex_key: $index\nlocal_volume_path: $local_volume_path\nceph_volume_path: $ceph_volume_path\nipv4_address_private_cidr: $ipv4_address_private_cidr\n"
+        echo -e "hostname: $hostname\nipv4_address: $ipv4_address\nipv4_address_iface: $ipv4_address_iface\nipv4_address_private: $ipv4_address_private\nindex_key: $index\nlocal_volume_path: $local_volume_path\nceph_volume_path: $ceph_volume_path\nipv4_address_private_cidr: $ipv4_address_private_cidr\nipv4_address_private_iface: $ipv4_address_private_iface\n"
     EOF
   ]
 }

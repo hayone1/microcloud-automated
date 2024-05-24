@@ -57,6 +57,7 @@ tasks:
           exit 10
         fi
   envvar_check:
+    desc: Verify the required provider environment variables are set.
     vars:
       # get from parent
       PROVIDER: '{{default "undefined" .PROVIDER}}'
@@ -164,35 +165,27 @@ tasks:
       GET_IP_TASK:
         sh: |
           if [ -d ./infra-{{.GROUP}}/{{.PROVIDER}} ]; then
-          # if [[ $(find ./infra-{{.GROUP}}/{{.PROVIDER}} -type f -name "*.tf" 2>/dev/null) ]]
             echo "get-hosts-provider"
           else
             echo "get-hosts-custom"
           fi
+    # each provier will define it's required variable keys in it's config file
+    # which should be exported in the shell or in one  of these .env files
     dotenv: ['./group_vars/{{.GROUP}}.env', './group_vars/.env', '.env']
     cmds:
-      # condition: if the provider's folder has been created and the tfstate file does not exist yet
       - echo "creating infra for provider - {{.PROVIDER}} | refresh - {{.UPDATE}}"
+      # condition: if the provider's folder has been created and the tfstate file does not exist yet
       - |
         if [[ -d ./infra-{{.GROUP}}/{{.PROVIDER}} &&
           ( (! -f ./infra-{{.GROUP}}/{{.PROVIDER}}/terraform.tfstate) ||
             {{.UPDATE}} == true ) ]]; then
           terraform -chdir=./infra-{{.GROUP}}/{{.PROVIDER}} init
         fi
-      # plan step seems unnecessary
-      # - |
-      #   if [[ -d ./infra-{{.GROUP}}/{{.PROVIDER}} &&
-      #     ( (! -f ./infra-{{.GROUP}}/{{.PROVIDER}}/terraform.tfstate) ||
-      #       {{.UPDATE}} == true ) ]]; then
-      #     terraform -chdir=./infra-{{.GROUP}}/{{.PROVIDER}} plan \
-      #       -var "provider_token=${DO_PAT}"
-      #   fi
       - |
         if [[ -d ./infra-{{.GROUP}}/{{.PROVIDER}} &&
           ( (! -f ./infra-{{.GROUP}}/{{.PROVIDER}}/terraform.tfstate) ||
             {{.UPDATE}} == true ) ]]; then
-          terraform -chdir=./infra-{{.GROUP}}/{{.PROVIDER}} apply \
-            -var "provider_token=${DO_PAT}" {{.CLI_ARGS}}
+          terraform -chdir=./infra-{{.GROUP}}/{{.PROVIDER}} apply {{.CLI_ARGS}}
         fi
       - task: '{{.GET_IP_TASK}}'
         # silent: true

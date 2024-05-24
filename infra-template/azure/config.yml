@@ -1,0 +1,10 @@
+# list of environment variables that needs to be set for this
+# terraform module to work properly
+
+# always prefix it with TF_VAR so it can automatically
+# be picked up by terraform
+required_env:
+  - TF_VAR_ARM_CLIENT_ID
+  - TF_VAR_ARM_CLIENT_SECRET
+  - TF_VAR_ARM_SUBSCRIPTION_ID
+  - TF_VAR_ARM_TENANT_ID

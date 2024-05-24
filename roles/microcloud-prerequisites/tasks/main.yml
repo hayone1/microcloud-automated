@@ -149,11 +149,11 @@
 
 
 - name: Create lxc gre tunnels (all-to-all)
-  shell: |-
     # lxc network set {{ lookup_bridge }} bridge.hwaddr {{random_mac}}
-    lxc network set {{ lookup_bridge }} tunnel.{{peer_grename | sort | join()}}.protocol gre
+  shell: |-
+    lxc network set {{ lookup_bridge }} tunnel.{{peer_grename | sort | join()}}.protocol vxlan
     lxc network set {{ lookup_bridge }} tunnel.{{peer_grename | sort | join()}}.id {{peer_grename | sort | join()}}
-    lxc network set {{ lookup_bridge }} tunnel.{{peer_grename | sort | join()}}.interface eth1
+    lxc network set {{ lookup_bridge }} tunnel.{{peer_grename | sort | join()}}.interface {{ipv4_address_iface}}
     # lxc network set {{ lookup_bridge }} tunnel.{{peer_grename | sort | join()}}.port 4789
     lxc network set {{ lookup_bridge }} tunnel.{{peer_grename | sort | join()}}.local {{ ipv4_address_private }}
     lxc network set {{ lookup_bridge }} tunnel.{{peer_grename | sort | join()}}.remote {{ hostvars[item]['ipv4_address_private'] }}
@@ -161,7 +161,7 @@
     iface_id: "1{{ index_key }}{{ hostvars[item]['index_key'] }}"
     peer_hostname: "{{hostvars[item]['ansible_nodename']}}"
     peer_grename: "1{{ index_key }}{{ hostvars[item]['index_key'] }}"
-    random_mac: "{{ lookup_bridge_mac_prefix | community.general.random_mac }}"
+    # random_mac: "{{ lookup_bridge_mac_prefix | community.general.random_mac }}"
   args:
     creates: /sys/class/net/{{ lookup_bridge }}-{{ peer_grename }}
   loop: "{{ groups[ansible_limit] }}"
@@ -188,29 +188,12 @@
 #   when: item.rc != 0
 #   loop: "{{ping_results.results}}"
 
-- name: Create ovn_uplink_interface veth pair {{ ovn_uplink_interface }} and {{ ovn_uplink_interface }}p
-  command: ip link add {{ ovn_uplink_interface }} type veth peer name {{ ovn_uplink_interface }}p
+- name: Create ovn_uplink_interface 
+  command: >-
+    lxc network create {{ ovn_uplink_interface }}
   args:
     creates: /sys/class/net/{{ ovn_uplink_interface }}
   when: vars["ansible_" + ovn_uplink_interface] is not defined
-
-- name: Add ovn_uplink_interface {{ ovn_uplink_interface }} to bridge {{ lookup_bridge }}
-  command: ip link set {{ ovn_uplink_interface }}p master {{ lookup_bridge }}
-  when: >-
-    (vars["ansible_" + ovn_uplink_interface] is not defined
-    or vars["ansible_" + ovn_uplink_interface].active != true)
-
-- name: Bring "{{ ovn_uplink_interface }}" interface up
-  command: ip link set dev {{ ovn_uplink_interface }} up
-  when: >-
-    (vars["ansible_" + ovn_uplink_interface] is not defined
-    or vars["ansible_" + ovn_uplink_interface].active != true)
-
-- name: Bring "{{ ovn_uplink_interface }}p" interface up
-  command: ip link set dev {{ ovn_uplink_interface }}p up
-  when: >-
-    (vars["ansible_" + ovn_uplink_interface] is not defined
-    or vars["ansible_" + ovn_uplink_interface].active != true)
 
 # - name: Show interface {{ ovn_uplink_interface }} information (for informational purposes only)
 #   when: 
@@ -269,7 +252,7 @@
   command: >-
     yq -i --prettyPrint 'del(.systems[] | select(.name == "{{ansible_nodename}}")) |
     .systems += [{"name": "{{ansible_nodename}}",
-    "ovn_uplink_interface": "{{ovn_uplink_interface}}",
+    "ovn_uplink_interface": "{{lookup_bridge}}",
     "storage": env(host_storage)}]'
     {{preseed_file.msg}}
   vars:
