@@ -1,12 +1,15 @@
 ---
 
 ######################################
-# Values you're probably interested in changing.
+# Values that are only valid in all.yml
+# and you're probably interested in changing.
 ######################################
 # ansible_ssh_host_key_checking: False
 # your environments, eg. dev, test, uat, sit, prod etc.
-groups: # can only be in all.yml
-  - dev
+groups:
+  # - dev
+  - test
+
 ######################################
 
 

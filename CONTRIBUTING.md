@@ -65,7 +65,7 @@ A Valid Output would produce something like the below:
         // within the server itself (eg. when you run lsblk)
         "ceph_volume_path": "/dev/sdb", // required for distributed storage
         "local_volume_path": "/dev/sda", // required for local storage
-        "hostname": "micro-droplet-0", //not required. as seen on the local network
+        "hostname": "micro-vm-0", //not required. as seen on the local network
         "index_key": 0, // not required, can be used for internal purposes
         "ipv4_address": "105.141.191.142", // not required
         "ipv4_address_private": "10.108.0.2/20" // required, Ip on the local network
@@ -73,7 +73,7 @@ A Valid Output would produce something like the below:
       "138.197.44.53": {
         "ceph_volume_path": "/dev/sdb",
         "local_volume_path": "/dev/sda",
-        "hostname": "micro-droplet-1",
+        "hostname": "micro-vm-1",
         "index_key": 1,
         "ipv4_address": "148.137.44.53",
         "ipv4_address_private": "10.108.0.4/20"

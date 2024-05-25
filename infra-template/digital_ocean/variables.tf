@@ -6,7 +6,7 @@ locals {
   parent_path = abspath("${path.module}")
   folder_name = basename(local.parent_path)
   parent_folder_name = basename(dirname(local.parent_path))
-  # group si synonymous to environment here
+  # group is synonymous to environment here
   group = split("-", local.parent_folder_name)[1] # eg. dev
 
   # read ansible group_vars related to this group/environment
@@ -14,7 +14,7 @@ locals {
   group_config  = yamldecode(file("../../group_vars/${local.group}.yml"))
   provider_config = local.group_config.infra_providers[local.folder_name]
 
-  prefix = local.group_config.prefix
+  prefix = try(local.group_config.prefix, "")
 }
 
 locals {
@@ -51,36 +51,9 @@ locals {
           ]
       ] : []
   )
-}
-
-
-
-
-locals {
-  server_sizes = {
-    "nano"     = [for _ in range(0, local.provider_config.quantity) : "s-1vcpu-1gb"] 
-    "micro"    = [for _ in range(0, local.provider_config.quantity) : "s-2vcpu-2gb"]
-    "small"    = [for _ in range(0, local.provider_config.quantity) : "s-2vcpu-4gb"]
-    # pricing danger zone
-    "medium"   = [for _ in range(0, local.provider_config.quantity) : "g-2vcpu-8gb"]
-    "large"    = [for _ in range(0, local.provider_config.quantity) : "g-4vcpu-16gb"]
-    "xlarge"   = [for _ in range(0, local.provider_config.quantity) : "g-8vcpu-32gb"]
-    "2xlarge"  = [for _ in range(0, local.provider_config.quantity) : "g-16vcpu-64gb"]
-    "custom"  = local.custom_size_map
-  }
-
-  selected_server_size = (
-    local.server_sizes[
-      local.group_config.infra_providers[local.folder_name].size
-      ]
+  tags = merge(
+    try(local.group_config.tag, {}),
+    try(local.provider_config.tag, {})
   )
   server_user          = local.group_config.ansible_user
 }
-
-##### provider specific variables ##### 
-variable "DO_PAT" {
-  type        = string
-  description = "Provider specific API token/key used for TF authentication."
-}
-# variable "pvt_key" {}
-##### provider specific variables ##### 

@@ -48,7 +48,7 @@ infra_providers:
   self_hosted:
   digital_ocean:
 ```
-> Currently supported cloud providers are: `digital_ocean`.
+> Currently supported cloud providers are: `digital_ocean`, `azure`.
 
 - If using a supported cloud provider, you can specify the `size`, `quantity:` and `region:`, `cephfs_volume_size`, `ceph_volume_size` and more under the cloud provider's field.
 eg.
@@ -90,7 +90,7 @@ infra_providers:
       10.1.1.0: # public IP
         # local ip in subnet form
         ipv4_address_private: "192.168.20.50/24" # [mandatory]
-        hostname: micro-droplet-0 # [mandatory]
+        hostname: micro-vm-0 # [mandatory]
       # where ipv4_address_private is not specified like the below,
       # the IP key(s) will be considered for both public
       # and private IP use

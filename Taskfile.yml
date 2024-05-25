@@ -150,7 +150,7 @@ tasks:
           GROUP: '{{ .GROUP }}'
           PROVIDER: '{{ .ITEM }}'
           UPDATE: '{{ .UPDATE }}'
-        # silent: true
+        silent: true
 
   deploy-provider-infra:
     desc: deploys the configured infra for the specified cloud provider.

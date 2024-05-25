@@ -4,85 +4,56 @@
 ansible_ssh_host_key_checking: false
 # mandatory, should be the name of this group
 # if file name is dev.yml, then group_name is dev
-group_name: dev
+# group_name: dev
 # mandatory
-ansible_user: root
+ansible_user: microcloud
 # mandatory
 ansible_ssh_private_key_file: ~/.ssh/id_rsa
 ansible_ssh_public_key_file: ~/.ssh/id_rsa.pub
 
-# general prefix that will be used to anem things
+# general prefix that will be used to name things
+# keep it strictly alphabets
 prefix: micro
 
+# some providers will use only the values
+# while others will use the keys and values
+tag:
+  System:       "microcloud"
+  Creator:      "terraform"
+  Environment:  "dev"
 # supported cloud providers are
 # |digital_ocean|
 # you can also put arbitrary values
 infra_providers:
-  self_hosted:
-    hosts:  # only host field will be used if specified
-      # hostname and ipv4_address_private are manatory
-      10.1.1.0: # public IP
-        # local ip in subnet form
-        ipv4_address_private: "192.168.20.50/24" # [mandatory]
-        hostname: micro-droplet-0 # [mandatory]
-      # where ipv4_address_private is not specified like the below,
-      # the IP key(s) will be considered for both public
-      # and private IP use
-      64.18.0.1:
-        hostname: micro-ec-0
-        ipv4_address_private: "192.168.20.55/24"
-        # you can specify volume names (as seen from lsblk)
-        ceph_volume_path: /dev/sdb # for distributed storage
-        local_volume_path: /dev/sda # for local storage
-      host.example.com:
-        hostname: micro-vm-1
-        ipv4_address_private: "192.168.30.51/24"
-        # you can specify other variables as you wish
-        http_port: 80
-        maxRequestsPerChild: 808
-      # The below will not be supported because you will not be able to
-      # specify the hostname for it
-      # www[01:50].example.com:
-    quantity: 3 # has no effect
+  # self_hosted:
+  #   hosts:  # only host field will be used if specified
+  #     192.168.0.145: # public IP
+  #       ipv4_address_private: "192.168.0.145/24" # [mandatory]
+  #       hostname: orangepi4-lts
+  #     192.168.0.147: # public IP
+  #       ipv4_address_private: "192.168.0.147/24" # [mandatory]
+  #       hostname: orangepi800
   digital_ocean:
-    # hosts:
-    #   do1.exammple.com:
-    #   do2.example.com:
-    # number of servers to be provisioned
     quantity: 3
-    # custom, nano, micro, small, medium, large, xlarge, 2xlarge
-    size: custom
-    # see valid digital ocean regions, os
-    # and sizes here https://slugs.do-api.dev/
+    size: nano
     region: "nyc3"
-    os: ubuntu-22-04-x64
-    # valid only if size is set to custom
-    # You can choose to have only 1 size item in the array which will be applied
-    # to all the servers. Or you can have as many size items as the quantity
-    # so that each size item is applied to each server
-    # eg. 
-    # quantity: 4
-    # custom_size: # notice that there are 4 sizes
-    #   - s-1vcpu-1gb
-    #   - s-1vcpu-512mb-10gb
-    #   - s-1vcpu-1gb-amd
-    #   - s-1vcpu-2gb
-    # [optional]<mandatory if size: custom>
-    custom_size: ['s-1vcpu-1gb'] # 
-    # if the list is smaller than the quantity, then the remaining
-    # servers will be sized using the last item in the list.
-
-    # This is mandatory and will be used to configure the volumes for microcloud
-    # the concept is similar to custom_size. Specify 1 or specify as much
-    # as the quantity you have specified
-    # it must be an integer (represents Gigabyte)
-    # [optional]
-    local_volume_sizes: [5]
-    # [optional]
-    ceph_volume_sizes: [5]
-
-
-
-# # weather or not to load balance the servers
-# deploy_loadbalancer: true
-# loadbalancer_dns: nicest-domains.com
+    image: 
+      sku: ubuntu-22-04-x64
+    custom_size: ['s-1vcpu-512mb-10gb'] # region sensitive 
+    local_volume_sizes: [3]
+    ceph_volume_sizes: [3]
+    tag:
+      prov: "do"
+  azure:
+    quantity: 3
+    size: nano
+    image:
+      publisher : "Canonical"
+      offer     : "0001-com-ubuntu-server-jammy"
+      sku       : "22_04-lts"
+      version   : "latest"
+    local_volume_sizes: [3]
+    ceph_volume_sizes: [3]
+    region: "eastus2"
+    tag:
+      Provider: "azure"
