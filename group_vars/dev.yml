@@ -38,17 +38,8 @@ infra_providers:
     region: "nyc3"
     image: 
       sku: ubuntu-22-04-x64
-    custom_size: ['s-1vcpu-512mb-10gb'] # region sensitive 
+    custom_sizes: ['s-1vcpu-512mb-10gb'] # region sensitive 
     local_volume_sizes: [3]
     ceph_volume_sizes: [3]
     tag:
       prov: "do"
-  azure:
-    tag:
-      Provider: "azure"
-    quantity: 3
-    image: # all mandatory
-      publisher : "Canonical"
-      offer     : "0001-com-ubuntu-server-jammy"
-      sku       : "22_04-lts"
-      version   : "latest"

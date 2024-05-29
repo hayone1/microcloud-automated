@@ -8,7 +8,8 @@
 # your environments, eg. dev, test, uat, sit, prod etc.
 groups:
   # - dev
-  - test
+  # - test
+  - qa
 
 ######################################
 

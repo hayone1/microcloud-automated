@@ -20,7 +20,7 @@ locals {
     "custom"  = local.custom_size_map
   }
 
-  selected_server_size = (
+  selected_server_sizes = (
     local.server_sizes[
       local.group_config.infra_providers[local.folder_name].size
       ]

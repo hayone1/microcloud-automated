@@ -32,7 +32,7 @@ digital_ocean:
     region: "nyc3"
     image: 
         sku: ubuntu-22-04-x64
-    # custom_size: ['s-1vcpu-512mb-10gb'] # region sensitive 
+    # custom_sizes: ['s-1vcpu-512mb-10gb'] # region sensitive 
     local_volume_sizes: [3]
     ceph_volume_sizes: [3]
     tag:

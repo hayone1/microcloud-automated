@@ -19,16 +19,16 @@ locals {
 
 locals {
 
-  # assign server size from custom_size list
-  # If custom_size list is smaller than server quantity,
-  # then all extra servers will take the size of the last item in the custom_size list
-  # if custom_size list is not defined or it is empty, then create a list of default sizes
+  # assign server size from custom_sizes list
+  # If custom_sizes list is smaller than server quantity,
+  # then all extra servers will take the size of the last item in the custom_sizes list
+  # if custom_sizes list is not defined or it is empty, then create a list of default sizes
   custom_size_map = (
-    try(length(local.provider_config.custom_size) > 0, false) ?
+    try(length(local.provider_config.custom_sizes) > 0, false) ?
       [
         for i in range(0, local.provider_config.quantity) :
-          local.provider_config.custom_size[
-            min(max(0,i), length(local.provider_config.custom_size) - 1)
+          local.provider_config.custom_sizes[
+            min(max(0,i), length(local.provider_config.custom_sizes) - 1)
           ]
       ] : []
   )

@@ -18,6 +18,8 @@ The major places of interest for customization will be in the [group_vars](group
 - [terraform](https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli)
 - [ansible](https://docs.ansible.com/ansible/latest/installation_guide/intro_installation.html)
 - [taskfile](https://taskfile.dev/installation/)
+- [faketime](https://manpages.ubuntu.com/manpages/trusty/man1/faketime.1.html)
+- Ensure your system time is correct and `date -u` gives the correct utc time!
 
 ### 1.2 Infra
 To setup microcloud you will need to have compute and network resources. This could be from a cloud provider or your private servers.
@@ -65,17 +67,17 @@ infra_providers:
     # custom, nano, micro, small, medium, large, xlarge, 2xlarge
     size: custom
     # valid only if size is set to custom
-    custom_size: ["t2.micro"]
+    custom_sizes: ["t2.micro"]
     # number of servers to be provisioned
     quantity: 3
     # see valid regions here https://slugs.do-api.dev/
     region: "nyc3"
 ```
-- If you specify `size: custom` in a provider, you must declear the  `custom_size:` list.
-It's best to either make the `custom_size:` list have only one entry or entries equal to
+- If you specify `size: custom` in a provider, you must declear the  `custom_sizes:` list.
+It's best to either make the `custom_sizes:` list have only one entry or entries equal to
 `quantity:`.
-> If your `custom_size:` list length is less than the `quantity:` value, then the remaining
-servers will be assigned the size of the last entry in your `custom_size:` list.
+> If your `custom_sizes:` list length is less than the `quantity:` value, then the remaining
+servers will be assigned the size of the last entry in your `custom_sizes:` list.
 This gives room for some interesting customizations on the size options you may want to configure.
 
 - If you have already setup your compute by yourself or used a provivder 
@@ -129,13 +131,6 @@ infra_providers:
 
 - Take a detour and head over to the [infra-template](infra-template/) folder and locate the sub folder(s) of the infra_provider(s) you chose and go through their respective README(s).
 
-- Once details of your cloud provider(s) has been provided. Run the below command to set up your compute.
-```
-task infra-deploy
-```
-- You can pass in valid terraform apply args by specifying them after "--" and separated by space.
-eg. `task infra-deploy -- -auto-approve` 
-
 > **Very Important**: No matter the approach you take to create your compute resources,
 you must **ensure they are visible to each other over a local or private network!**
 
@@ -147,38 +142,56 @@ have the task package installed.
 - To get the list of available tasks you can run `task --list`
 - To deploy microcloud for a specific environment/group,
 you'll can to run commands in the below formats:
+
 ```shell
+task microcloud-<group>-up
+# or the below three
 task infra-create-<group>
 task run-deploy-init-<group>
 task run-deploy-install-<group>
 ```
 eg.
 ``` shell
+task microcloud-dev-up
+# or the below three
 task infra-create-dev
 task run-deploy-init-dev
 task run-deploy-install-dev
 ```
-- To deploy microcloud on all configured environments/groups, simply run the below:
+<!-- - To deploy microcloud on all the environments/groups specified in the `all.yml`, simply run the below:
 ``` shell
+task microcloud-all-up
+# or the below three
 task infra-create-all
 task run-deploy-init-all
-task run-deploy-install-all
-```
-- If you want to preview the list of tasks that will be run in the microcloud
-installation process(excluding infra provisioning) and the hosts that will be affected,
+task run-deploy-install-all -->
+
+<!-- - To preview the list of bash commands that will be run in the microcloud
+installation process, just add `--dry` to any command you use.
+eg.
+``` shell
+task microcloud-dev-up --dry
+task infra-destroy-dev --dry
+``` -->
+
+
+- To preview the list of ansible tasks that will be run in the microcloud
+installation process and the hosts that will be affected,
 you can run a command in this format: `task list-deploy-init-<group> && task task list-deploy-install-<group>`.
 eg.
-``` bash
+``` shell
 task list-deploy-init-all && task task list-deploy-install-all
 ```
 - If there is a failure after some resources have been created, you can fix
 whatever caused the failure and run the below command formats:
 ```shell
+task microcloud-<group>-up
+# or the below three
 task infra-refresh-<group>
 task run-deploy-init-<group>
 task run-deploy-install-<group>
 ```
-> if you don't use the `-- -auto-approve` argument, you will receive some conformation prompts.
+> You can use the `-- -auto-approve` arguments in the infra commands to skip terraform prompts.
 - After infra setup, if you want to see the list of IPs in a summarized form
 simply run your `task infra-create-<group>` command again.
 

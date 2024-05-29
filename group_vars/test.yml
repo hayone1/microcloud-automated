@@ -14,12 +14,20 @@ tag:
 infra_providers:
   azure:
     quantity: 3
-    size: nano
+    size: custom
+    custom_sizes:
+      - Standard_D2s_v3
+      - Standard_D2s_v3
+      - Standard_B2s
     image: # all mandatory
       publisher : "Canonical"
-      offer     : "0001-com-ubuntu-server-jammy"
-      sku       : "22_04-lts"
-      version   : "latest"
+      offer     : "0001-com-ubuntu-minimal-noble-daily"
+      sku       : "minimal-24_04-daily-lts-gen2"
+      version   : "24.04.202403090"
+      # publisher : "Canonical"
+      # offer     : "0001-com-ubuntu-server-jammy"
+      # sku       : "22_04-lts"
+      # version   : "latest"
     local_volume_sizes: [3]
     ceph_volume_sizes: [3]
     region: "eastus2"

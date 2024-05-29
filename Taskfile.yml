@@ -89,23 +89,21 @@ tasks:
       - for: { var: MY_VAR, split: '\n' }
         cmd: echo {{.ITEM}}
 
-  infra-create-all:
-    desc: creates all infra resources across all groups.
-    vars:
-      GROUPS:
-        sh: yq '.groups | join(" ")' "./group_vars/all.yml"
-    cmds:
-      - for: { var: GROUPS }
-        task: infra-create-{{.ITEM}}
-        # vars:
-        #   GROUP: '{{.ITEM}}'
-        # silent: true
+  # infra-all-*:
+  #   desc: creates all infra resources across all groups.
+  #   vars:
+  #     ACTION: '{{index .MATCH 0}}'
+  #     GROUPS:
+  #       sh: yq '.groups | join(" ")' "./group_vars/all.yml"
+  #   cmds:
+  #     - for: { var: GROUPS }
+  #       task: infra-{{.ACTION}}-{{.ITEM}}
 
   infra-*-*:
     desc: |-
       creates infra resources using all infra providers defined in
       the group yml. eg. task infra-create-dev, infra-update-dev, 
-      infra-update-dev -- -auto-approve
+      infra-update-dev -- -auto-approve, task infra-plan-qa etc.
     # internal: true
     silent: true
     vars:
@@ -114,16 +112,19 @@ tasks:
       # GROUP: '{{default "invalid" .GROUP}}'
       PROVIDERS:
         sh: yq '.infra_providers | keys | join(" ")' "./group_vars/{{.GROUP}}.yml"
-      UPDATE:
+      ACTION_MAP:
         sh: |
-          if [ {{.ACTION}} == update ]; then
-            echo true
-          elif [ {{.ACTION}} == create ]; then
-            echo false
+          if [ {{.ACTION}} == create ]; then
+            echo create-provider-infra
+          elif [ {{.ACTION}} == update ]; then
+            echo create-provider-infra
+          elif [ {{.ACTION}} == plan ]; then
+            echo plan-provider-infra
+          elif [ {{.ACTION}} == destroy ]; then
+            echo destroy-provider-infra
           else
-            echo invalid
+            echo invalid-action
           fi
-        
     cmds:
       # has not effect if no env var is needed.
       - for: { var: PROVIDERS }
@@ -132,6 +133,8 @@ tasks:
           GROUP: '{{ .GROUP }}'
           PROVIDER: '{{ .ITEM }}'
         silent: true
+      - for: {var: PROVIDERS}
+        cmd: echo "{{.ACTION}} infra for group - {{ .GROUP }} | provider - {{.ITEM}}"
       # create a folder for the infra provider
       - for: { var: PROVIDERS }
         cmd: |-
@@ -140,26 +143,50 @@ tasks:
           host_exists=$(yq '.infra_providers.{{.ITEM}} |
             has("hosts")' 'group_vars/{{.GROUP}}.yml')
           
-          if  [ "$host_exists" == 'false' ] &&
-              [ -d {{.INFRA_TEMPLATE}}/{{.ITEM}} ]; then
+          if  [[ "$host_exists" == 'false' &&
+                -d {{.INFRA_TEMPLATE}}/{{.ITEM}} &&
+                {{.ACTION}} != destroy ]]; then
             cp -r {{.INFRA_TEMPLATE}}/{{.ITEM}} ./infra-{{.GROUP}}
           fi
       - for: { var: PROVIDERS }
-        task: deploy-provider-infra
+        task: '{{.ACTION_MAP}}'
         vars:
           GROUP: '{{ .GROUP }}'
           PROVIDER: '{{ .ITEM }}'
-          UPDATE: '{{ .UPDATE }}'
-        silent: true
+          ACTION: '{{ .ACTION }}'
+        # silent: true
+      - |-
+        if [[ {{.ACTION}} == destroy ]]; then
+          yq --inplace 'del(.{{.GROUP}})' hosts.yml
+          rm -rf infra-{{.GROUP}}
+        fi
 
-  deploy-provider-infra:
+  plan-provider-infra:
+    desc: outputs the terraform plan for the configured infra of specified cloud provider.
+    internal: true
+    # silent: true
+    vars:
+      PROVIDER: '{{default "undefined" .PROVIDER}}'
+      GROUP: '{{default "undefined" .GROUP}}'
+      ACTION: '{{default "false" .ACTION}}'
+    # each provier will define it's required variable keys in it's config file
+    # which should be exported in the shell or in one  of these .env files
+    dotenv: ['./group_vars/{{.GROUP}}.env', './group_vars/.env', '.env']
+    cmds:
+      # condition: if the provider's folder has been created and the tfstate file does not exist yet
+      - |
+        if [[ -d ./infra-{{.GROUP}}/{{.PROVIDER}} ]]; then
+          terraform -chdir=./infra-{{.GROUP}}/{{.PROVIDER}} plan {{.CLI_ARGS}}
+        fi
+
+  create-provider-infra:
     desc: deploys the configured infra for the specified cloud provider.
     internal: true
     # silent: true
     vars:
       PROVIDER: '{{default "undefined" .PROVIDER}}'
       GROUP: '{{default "undefined" .GROUP}}'
-      UPDATE: '{{default "false" .UPDATE}}'
+      ACTION: '{{default "false" .ACTION}}'
       # set the task to get ips based on if the cloud provider
       # is supported ot arbitrary
       GET_IP_TASK:
@@ -173,22 +200,20 @@ tasks:
     # which should be exported in the shell or in one  of these .env files
     dotenv: ['./group_vars/{{.GROUP}}.env', './group_vars/.env', '.env']
     cmds:
-      - echo "creating infra for provider - {{.PROVIDER}} | refresh - {{.UPDATE}}"
       # condition: if the provider's folder has been created and the tfstate file does not exist yet
       - |
+        current_utc_time=$(date -u)
         if [[ -d ./infra-{{.GROUP}}/{{.PROVIDER}} &&
-          ( (! -f ./infra-{{.GROUP}}/{{.PROVIDER}}/terraform.tfstate) ||
-            {{.UPDATE}} == true ) ]]; then
+            (
+              (! -f ./infra-{{.GROUP}}/{{.PROVIDER}}/terraform.tfstate) ||
+              {{.ACTION}} = update
+            ) 
+           ]]; then
           terraform -chdir=./infra-{{.GROUP}}/{{.PROVIDER}} init
-        fi
-      - |
-        if [[ -d ./infra-{{.GROUP}}/{{.PROVIDER}} &&
-          ( (! -f ./infra-{{.GROUP}}/{{.PROVIDER}}/terraform.tfstate) ||
-            {{.UPDATE}} == true ) ]]; then
-          terraform -chdir=./infra-{{.GROUP}}/{{.PROVIDER}} apply {{.CLI_ARGS}}
+          # using utc time to cater for oracle_cloud's requirements
+          faketime -f "$current_utc_time" terraform -chdir=./infra-{{.GROUP}}/{{.PROVIDER}} apply {{.CLI_ARGS}}
         fi
       - task: '{{.GET_IP_TASK}}'
-        # silent: true
         vars:
           GROUP: '{{.GROUP}}'
           PROVIDER: '{{.PROVIDER}}'
@@ -225,7 +250,6 @@ tasks:
 
         # echo "${result//" <remove-this>"/''}" > hosts.yml
       - echo "✅️ hosts.yml updated successfully"
-
   
   # others
   get-hosts-custom:
@@ -252,48 +276,34 @@ tasks:
   ############# Deploy Infra #############
 
   ############# Destroy Infra #############
-  destroy-infra-all:
-    desc: Destroys all the infra resources created by this project.
-    vars:
-      GROUPS:
-        sh: yq '.groups | join(" ")' "./group_vars/all.yml"
-    cmds:
-      - for: { var: GROUPS }
-        task: infra-destroy-{{.ITEM}}
-        # vars:
-        #   GROUP: '{{.ITEM}}'
-        # silent: true
+  # destroy-infra-all:
+  #   desc: Destroys all the infra resources created by this project.
+  #   vars:
+  #     GROUPS:
+  #       sh: yq '.groups | join(" ")' "./group_vars/all.yml"
+  #   cmds:
+  #     - for: { var: GROUPS }
+  #       task: infra-destroy-{{.ITEM}}
+  #       # vars:
+  #       #   GROUP: '{{.ITEM}}'
+  #       # silent: true
   
-  destroy-infra-*:
+  destroy-provider-infra:
     desc: |-
       Destroys the infra resources created for a specific group/environment.
       eg. task infra-destroy-dev
-    # internal: true
+    internal: true
     # silent: true
     vars:
-      GROUP: '{{index .MATCH 0}}'
-      # GROUP: '{{default "invalid" .GROUP}}'
-      PROVIDERS:
-        sh: yq '.infra_providers | keys | join(" ")' "./group_vars/{{.GROUP}}.yml"
+      PROVIDER: '{{default "undefined" .PROVIDER}}'
+      GROUP: '{{default "undefined" .GROUP}}'
     dotenv: ['./group_vars/{{.GROUP}}.env', './group_vars/.env', '.env']
     cmds:
       # env variables also need to exist for destroy
-      - for: { var: PROVIDERS }
-        task: envvar_check
-        vars:
-          GROUP: '{{ .GROUP }}'
-          PROVIDER: '{{ .ITEM }}'
-        silent: true
-      - for: { var: PROVIDERS }
-        cmd: |-
-          if [ -f ./infra-{{.GROUP}}/{{.ITEM}}/terraform.tfstate ]; then
-            terraform -chdir=./infra-{{.GROUP}}/{{.ITEM}} destroy \
-              -var "provider_token=${DO_PAT}" {{.CLI_ARGS}}
+      - |-
+          if [ -f ./infra-{{.GROUP}}/{{.PROVIDER}}/terraform.tfstate ]; then
+            terraform -chdir=./infra-{{.GROUP}}/{{.PROVIDER}} destroy {{.CLI_ARGS}}
           fi
-        silent: true
-      - yq --inplace 'del(.{{.GROUP}})' hosts.yml
-      - rm -rf infra-{{.GROUP}}
-  
   ############# Destroy Infra #############
 
 ############# Deploy Microcloud #############
@@ -311,7 +321,7 @@ tasks:
   deploy-*-*:
     desc: |-
       Runs the tasks required to deploy microcloud on the
-      given infrastructure. eg. task run-deploy-init-all, task run-deploy-install-dev
+      given infrastructure. eg. task deploy-init-all, task deploy-install-dev
     vars:
       ACTION: '{{index .MATCH 0}}'
       GROUP: '{{index .MATCH 1}}'
@@ -343,7 +353,7 @@ tasks:
     vars:
       GROUP: '{{index .MATCH 0}}'
     cmds:
-      - task destroy-infra-{{.GROUP}} -- --auto-approve
+      - task infra-destroy-{{.GROUP}} -- --auto-approve
 ############# Destroy All #############
 
   run-destroy-*:

@@ -38,10 +38,12 @@
 
 - name: Set snapd version
   # when: "'snapd' not in ansible_facts.packages"
-  # snap:
-  #   name: snapd
-  #   state: present
-  #   channel: '{{snapd_channel}}'
+  snap:
+    name: snapd
+    state: present
+    channel: '{{snapd_channel}}'
+  
+- name: Set snapd version using command
   command: snap refresh snapd --channel={{snapd_channel}}
 
 - name: Install core snap
@@ -100,7 +102,14 @@
     name: tcpflow
     state: present
 
-- name: Set ufw policy to allow
+- name: Install iputils-ping
+  when: "'iputils-ping' not in ansible_facts.packages"
+  apt:
+    name: iputils-ping
+    state: present
+
+- name: Disable ufw
+  when: "'ufw' in ansible_facts.packages"
   ufw:
     state: disabled
     policy: allow

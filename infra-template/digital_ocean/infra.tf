@@ -15,7 +15,7 @@ resource "digitalocean_droplet" "microcloud-vms" {
   image       = local.provider_config.image.sku
   name        = "${local.prefix}-vm-${count.index}"
   region      = local.provider_config.region
-  size        = local.selected_server_size[count.index]
+  size        = local.selected_server_sizes[count.index]
   # private key
   ssh_keys    = [digitalocean_ssh_key.terraform_ssh.fingerprint]
   # set both local and ceph volume if created, or either of them or none
