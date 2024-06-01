@@ -4,13 +4,15 @@
 
 ## Getting Started
 
-| Tested Compatibility|
-| ------------------- |
-| ubuntu-24.04-lts |
+
 
 > You can follow [this link](https://docs.oracle.com/en-us/iaas/developer-tutorials/tutorials/tf-provider/01-summary.htm)
 to get a basic idea of how to setup this provider or if you encounter issues with this guide.
-> **Important**: Only Ubuntu images have been tested by this provider project for now.
+> **Important**: This project does not work well with the oracle free tier's limitations.
+
+|Tested OS|
+|---------|
+|Ubuntu-22-04-lts|
 
 This project uses oci API key based authentication.
 There are 3 major preparatory stages for OCI.
@@ -118,3 +120,9 @@ eg.
 - [Terraform OCI setup](https://docs.oracle.com/en-us/iaas/developer-tutorials/tutorials/tf-provider/01-summary.htm)
 - For a list of valid regions see [here](https://github.com/claranet/terraform-azurerm-regions/blob/master/regions.tf)
 - For how to see valid VM images, see [here](https://learn.microsoft.com/en-us/azure/virtual-machines/linux/cli-ps-findimage)
+
+| References|
+|-----------|
+| https://github.com/oracle/terraform-provider-oci/tree/master/examples |
+| https://github.com/RhubarbSin/terraform-oci-free-compute-maximal-example/tree/main |
+

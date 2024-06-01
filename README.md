@@ -6,6 +6,9 @@
 
 This project is generally intended for experimentation/evaluation and can be improved/customized to fit your unique needs to become production ready.
 
+This project has 2 sections that can be independently depoyed and managed. They are
+1. Deploying networked compute to various cloud providers in an opinionated yet flexible way.
+2. Deploying microcloud on said compute.
 
 ## 1. Getting-Started
 

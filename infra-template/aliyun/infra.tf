@@ -1,69 +1,30 @@
-resource "azurerm_resource_group" "microcloud-rg" {
-  name      = "${local.prefix}-rg"
-  location  = local.provider_config.region
+resource "alicloud_vpc" "microcloud-vpc" {
+  vpc_name   = "${local.prefix}-vnet"
+  cidr_block = try(local.provider_config.local_network_block, "10.0.0.0/16")
 
   tags      = local.tags
 }
 
-
-resource "azurerm_virtual_network" "microcloud-vnet" {
-  name                = "${local.prefix}-vnet"
-  address_space       = [
-    try(local.provider_config.local_network_block, "10.0.0.0/16")
-  ]
-  location            = azurerm_resource_group.microcloud-rg.location
-  resource_group_name = azurerm_resource_group.microcloud-rg.name
-
-  tags      = local.tags
-}
-
-resource "azurerm_subnet" "microcloud-subnet" {
-  name                  = "${local.prefix}-subnet"
-  resource_group_name   = azurerm_resource_group.microcloud-rg.name
-  virtual_network_name  = azurerm_virtual_network.microcloud-vnet.name
-  address_prefixes      = try(
-    [local.provider_config.local_subnet_block], 
-    azurerm_virtual_network.microcloud-vnet.address_space
+resource "alicloud_vswitch" "microcloud-vswitch" {
+  vswitch_name  = "${local.prefix}-subnet"
+  vpc_id        = alicloud_vpc.microcloud-vpc.id
+  cidr_block    = try(
+    local.provider_config.local_subnet_block, 
+    alicloud_vpc.microcloud-vpc.cidr_block
   )
+  zone_id    = local.chosen_availability_zone # should 0 be hardcoded?
 }
 
-# resource "azurerm_network_security_group" "microcloud-sg" {
-#   name     = "${local.prefix}-sg"
-#   location = local.provider_config.region
-#   resource_group_name = azurerm_resource_group.microcloud-rg.name
-
-#   tags      = local.tags
-# }
-
-# resource "azurerm_network_security_rule" "microcloud-sr" {
-#   # for_each = tolist(["Inbound", "Outbound"])
-#   for_each = {for idx, dir in ["Inbound", "Outbound"]: idx => dir}
-#   name                        = "${local.prefix}-sr"
-#   priority                    = (100 + each.key)
-#   direction                   = each.value
-#   access                      = "Allow"
-#   protocol                    = "*"
-#   # protocol                    = "Tcp"
-#   source_port_ranges          =  local.allowed_ports
-  
-#   destination_port_ranges     = local.allowed_ports
-#   source_address_prefix       = local.allowed_source_address_prefix
-#   destination_address_prefix  = local.allowed_destination_address_prefix
-#   resource_group_name         = azurerm_resource_group.microcloud-rg.name
-#   network_security_group_name = azurerm_network_security_group.microcloud-sg.name
-
-# }
-
-# resource "azurerm_subnet_network_security_group_association" "microcloud-sga" {
-#   subnet_id                 = azurerm_subnet.microcloud-subnet.id
-#   network_security_group_id = azurerm_network_security_group.microcloud-sg.id
-# }
+resource "alicloud_security_group" "microcloud-nsg" {
+  name    = "${local.prefix}-nsg"
+  vpc_id  = alicloud_vpc.microcloud-vpc.id
+}
 
 resource "azurerm_public_ip" "public-ips" {
   count               = local.provider_config.quantity
   name                = "${local.prefix}-public-ip-${count.index}"
-  location            = azurerm_resource_group.microcloud-rg.location
-  resource_group_name = azurerm_resource_group.microcloud-rg.name
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
   allocation_method   = "Dynamic"
 
   tags      = local.tags
@@ -72,8 +33,8 @@ resource "azurerm_public_ip" "public-ips" {
 resource "azurerm_network_interface" "interfaces" {
   count                 = local.provider_config.quantity
   name                  = "${local.prefix}-interface-${count.index}"
-  location              = azurerm_resource_group.microcloud-rg.location
-  resource_group_name   = azurerm_resource_group.microcloud-rg.name
+  location              = azurerm_resource_group.rg.location
+  resource_group_name   = azurerm_resource_group.rg.name
 
   ip_configuration {
     name                = "${local.prefix}-ipconfig-${count.index}"
@@ -89,8 +50,8 @@ resource "azurerm_linux_virtual_machine" "microcloud-vms" {
   count                 = local.provider_config.quantity
   name                  = "${local.prefix}-vm-${count.index}"
   computer_name         = "${local.prefix}-vm-${count.index}"
-  location              = azurerm_resource_group.microcloud-rg.location
-  resource_group_name   = azurerm_resource_group.microcloud-rg.name
+  location              = azurerm_resource_group.rg.location
+  resource_group_name   = azurerm_resource_group.rg.name
   network_interface_ids = [azurerm_network_interface.interfaces[count.index].id]
   size                  = local.selected_server_sizes[count.index]
   admin_username        =  local.server_user
@@ -136,8 +97,8 @@ resource "azurerm_linux_virtual_machine" "microcloud-vms" {
 resource "azurerm_managed_disk" "local-volumes" {
   count                 = length(local.local_volume_map)
   name                  = "${local.prefix}localvolume${count.index}"
-  location              = azurerm_resource_group.microcloud-rg.location
-  resource_group_name   = azurerm_resource_group.microcloud-rg.name
+  location              = azurerm_resource_group.rg.location
+  resource_group_name   = azurerm_resource_group.rg.name
   storage_account_type  = var.storage-account-type
   create_option         = "Empty"
   disk_size_gb          = local.local_volume_map[count.index]
@@ -147,8 +108,8 @@ resource "azurerm_managed_disk" "local-volumes" {
 resource "azurerm_managed_disk" "ceph-volumes" {
   count                 = length(local.ceph_volume_map)
   name                  = "${local.prefix}cephvolume${count.index}"
-  location              = azurerm_resource_group.microcloud-rg.location
-  resource_group_name   = azurerm_resource_group.microcloud-rg.name
+  location              = azurerm_resource_group.rg.location
+  resource_group_name   = azurerm_resource_group.rg.name
   storage_account_type  = var.storage-account-type
   create_option         = "Empty"
   disk_size_gb          = local.ceph_volume_map[count.index]

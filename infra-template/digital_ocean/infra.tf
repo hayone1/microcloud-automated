@@ -1,4 +1,10 @@
 # Temporary key pair used for SSH accesss
+resource "digitalocean_vpc" "microcloud-vpc" {
+  name      = "${local.prefix}-vnet"
+  region    = local.provider_config.region
+  ip_range  = try(local.provider_config.local_network_block, "10.0.0.0/16")
+}
+
 resource "digitalocean_tag" "tags" {
   for_each = local.tags
   name = each.value
@@ -16,21 +22,10 @@ resource "digitalocean_droplet" "microcloud-vms" {
   name        = "${local.prefix}-vm-${count.index}"
   region      = local.provider_config.region
   size        = local.selected_server_sizes[count.index]
-  # private key
+  vpc_uuid    = digitalocean_vpc.microcloud-vpc.id
   ssh_keys    = [digitalocean_ssh_key.terraform_ssh.fingerprint]
-  # set both local and ceph volume if created, or either of them or none
-  # volume_ids  = (
-  #   length(digitalocean_volume.local-volume) > 0 && length(digitalocean_volume.ceph-volume) > 0 ?
-  #     [
-  #       digitalocean_volume.local-volume[count.index].id,
-  #       digitalocean_volume.ceph-volume[count.index].id
-  #     ]  : 
-  #     length(digitalocean_volume.local-volume) > 0 ?
-  #           [digitalocean_volume.local-volume[count.index].id] :
-  #     length(digitalocean_volume.ceph-volume) > 0 ?
-  #           [digitalocean_volume.ceph-volume[count.index].id] :
-  #     []
-  # )
+
+
   tags = [for tag in digitalocean_tag.tags : tag.id]
   
   # ssh_keys  = [digitalocean_ssh_key.terraform_ssh.fingerprint]
@@ -40,12 +35,13 @@ resource "digitalocean_droplet" "microcloud-vms" {
       "echo 'Waiting for cloud-init to complete...'",
       "cloud-init status --wait > /dev/null",
       "echo 'Completed cloud-init!'",
-      "echo 'Creating Server User...'",
-      "adduser ${local.server_user}",
-      "usermod -aG sudo ${local.server_user}"
-      # # install nginx just for testing
-      # "sudo apt update",
-      # "sudo apt install -y nginx"
+      "echo 'Creating Passwordless Sudo User...'",
+      "useradd -U ${local.server_user}",
+      "usermod -aG sudo ${local.server_user}",
+      "echo '${local.server_user} ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/${local.server_user}",
+      "mkdir -p /home/${local.server_user}/.ssh",
+      "cat ~/.ssh/authorized_keys >> /home/${local.server_user}/.ssh/authorized_keys",
+      "echo user ${local.server_user} added successfully."
      ]
 
      connection {
@@ -53,10 +49,7 @@ resource "digitalocean_droplet" "microcloud-vms" {
        host     = self.ipv4_address
        user     = "root"
        private_key = file(local.group_config.ansible_ssh_private_key_file)
-      #  private_key = tls_private_key.global_key.private_key_pem
      }
-
-     
   }
 }
 
@@ -65,7 +58,7 @@ resource "digitalocean_volume" "local-volumes" {
   name                    = "${local.prefix}localvolume${count.index}"
   region                  = local.provider_config.region
   size                    = local.local_volume_map[count.index]
-  initial_filesystem_type = "ext4"
+  initial_filesystem_type = try(local.provider_config.initial_filesystem_type, "ext4")
   description             = "Volume to be used for microcloud storage."
   tags = [for tag in digitalocean_tag.tags : tag.id]
 }
@@ -74,7 +67,7 @@ resource "digitalocean_volume" "ceph-volumes" {
   name                      = "${local.prefix}cephvolume${count.index}"
   region                    = local.provider_config.region
   size                      = local.ceph_volume_map[count.index]
-  initial_filesystem_type   = "ext4"
+ initial_filesystem_type = try(local.provider_config.initial_filesystem_type, "ext4")
   description               = "Volume to be used for microcloud storage."
   tags = [for tag in digitalocean_tag.tags : tag.id]
 }

@@ -49,3 +49,18 @@ locals {
   )
   server_user          = local.group_config.ansible_user
 }
+
+locals {
+  allowed_ports = try(
+    local.provider_config.security_rules.allowed_ports, 
+    [22, 80, 443, 8443]
+  )
+  allowed_source_address_prefix = try(
+    local.provider_config.security_rules.allowed_source_address_prefix, 
+    "0.0.0.0/0"
+  )
+  allowed_destination_address_prefix = try(
+    local.provider_config.security_rules.allowed_destination_address_prefix, 
+    "0.0.0.0/0"
+  )
+}

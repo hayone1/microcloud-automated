@@ -19,16 +19,14 @@ infra_providers:
     # custom_sizes:
     image:
       operating_system: "Canonical Ubuntu" # alias publisher:
-      # either set to ["auto"] or set the ocids of the image
-      # based on your region and size
+      # either set to ["auto"] or set the ocids of the image based on your region and size
       # get images from https://docs.oracle.com/en-us/iaas/images/
       # Set either single value array or as many ocids as the quantity
       ocids      : ["auto"]
-
-      # version   : 22.04
       operating_system_version: 22.04 # alias # version:
-    local_volume_sizes: [3]
-    ceph_volume_sizes: [3]
+    # for oracle_cloud, muse be between 50-32768
+    local_volume_sizes: [50]
+    ceph_volume_sizes: [50]
     region: "eastus2"
     # oracle_cloud specific.
     # either set to auto or give the "name" of the availability domain

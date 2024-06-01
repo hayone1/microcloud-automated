@@ -41,25 +41,25 @@
 # - name: Kill process using port 9443
 #   command: fuser -k 9443/tcp
 
-- name: Initialize microcloud (only on first host)
-  # when: inventory_hostname == ansible_play_hosts[0]
-  delegate_to: '{{ansible_play_hosts[0]}}'
-  run_once: true
-  shell:
-    cmd: cat /tmp/infra-{{ansible_limit}}-preseed.yml | microcloud init --preseed
-  register: init_result
-  ignore_errors: true
-  # retries: 5
-  # delay: 5
-  # until: init_result is not failed
-- debug:
-    msg: '{{init_result.stdout_lines}}'
+# - name: Initialize microcloud (only on first host)
+#   # when: inventory_hostname == ansible_play_hosts[0]
+#   delegate_to: '{{ansible_play_hosts[0]}}'
+#   run_once: true
+#   shell:
+#     cmd: cat /tmp/infra-{{ansible_limit}}-preseed.yml | microcloud init --preseed
+#   register: init_result
+#   ignore_errors: true
+#   # retries: 5
+#   # delay: 5
+#   # until: init_result is not failed
+# - debug:
+#     msg: '{{init_result.stdout_lines}}'
 
-- name: Show LXC Cluster
-  when: init_result.rc == 0
-  delegate_to: '{{ansible_play_hosts[0]}}'
-  run_once: true
-  command: lxc cluster list
-  register: lxc_cluster
-- debug:
-    msg: "{{lxc_cluster}}"
+# - name: Show LXC Cluster
+#   when: init_result.rc == 0
+#   delegate_to: '{{ansible_play_hosts[0]}}'
+#   run_once: true
+#   command: lxc cluster list
+#   register: lxc_cluster
+# - debug:
+#     msg: "{{lxc_cluster}}"

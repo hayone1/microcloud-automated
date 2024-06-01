@@ -4,7 +4,10 @@
 
 ## Setting-Up
 > You can follow [this link](https://www.digitalocean.com/community/tutorials/how-to-use-terraform-with-digitalocean) to get a basic idea of this provider.
-> **Important**: Only Ubuntu images are supported by this provider project for now.
+
+|Tested OS|
+|---------|
+|Ubuntu-22-04-lts|
 
 - Ensure the `ansible_user:`, `ansible_ssh_public_key_file`, and `ansible_ssh_private_key_file:` have been set in your `<group-name>.yml` file.
 > **Important**: The SSH key shouldn't already exist on your digital ocean account, else provisioning will fail with an "SSH Key is already in use" error.

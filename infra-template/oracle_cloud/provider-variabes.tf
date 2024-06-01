@@ -79,6 +79,7 @@ locals {
   # "One or more data centers located within a region."
   chosen_availability_domain = (
     local.provider_config.availability_domain == "auto" ?
+        # the index is hard coded
         data.oci_identity_availability_domains.avdomains.availability_domains[2].name :
         local.provider_config.availability_domain
   )

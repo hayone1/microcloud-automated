@@ -108,21 +108,18 @@
     name: iputils-ping
     state: present
 
-- name: Install iptables
-  when: "'iptables' not in ansible_facts.packages"
-  apt:
-    name: iptables
-    state: present
+# - name: Disable ufw
+#   when: "'ufw' in ansible_facts.packages"
+#   ufw:
+#     state: disabled
+    # policy: allow
 
-- name: Install iptables-persistent
-  when: "'iptables-persistent' not in ansible_facts.packages"
-  apt:
-    name: iptables-persistent
-    state: present
+# - name: Allow port 8443 on lxc
+#   command: lxc config set core.https_address :8443
 
-- name: Check if secondary ip exists on {{ipv4_address_iface}}
+- name: Check if secondary ip exists on eth0
   shell: |
-    ip addr show {{ipv4_address_iface}} | grep "inet " | awk '{print $2}' | {
+    ip addr show eth0 | grep "inet " | awk '{print $2}' | {
         read -r ip1
         read -r ip2
         if [ -n "$ip2" ]; then
@@ -134,91 +131,69 @@
 #     msg: secondary ip - {{secondary_ip.stdout}}
 
 - name: Delete secondary ip
-  command: ip addr del {{ secondary_ip.stdout }} dev {{ipv4_address_iface}}
+  command: ip addr del {{ secondary_ip.stdout }} dev eth0
   when: secondary_ip.stdout != ""
 
-- name: Create bridge interface {{ lookup_bridge }}
+# - name: Check if bridge already exists
+#   command: |
+#     lxc network show {{ lookup_bridge }}
+#   register: bridge_check
+#   ignore_errors: true
+
+- name: Create lxc bridge interface {{ lookup_bridge }}
   when: vars["ansible_" + lookup_bridge] is not defined
   # when: bridge_check.rc != 0
-  shell: |
-    brctl addbr {{ lookup_bridge }}
-    ip addr add {{ ip_cidr }} dev {{ lookup_bridge }}
-    ip link set {{ lookup_bridge }} up
+  command: >-
+    lxc network create {{ lookup_bridge }}
+    ipv4.address={{ lookup_subnet |
+    ansible.utils.next_nth_usable(host_index | int) }}/{{ bridge_netmask }}
+  # ipv4.nat=true
+  # ipv6.nat=true
   args:
     creates: /sys/class/net/{{ lookup_bridge }}
   vars:
     bridge_netmask: "{{ lookup_subnet | ansible.utils.ipaddr('prefix')}}"
     host_index: "{{ index_key }}"
-    ip_cidr: '{{ lookup_subnet | ansible.utils.next_nth_usable(host_index | int) }}/{{ bridge_netmask }}'
 
-- name: Configure ufw allow for bridge interface {{ lookup_bridge }}
+- name: Disable firewall on lxc bridge interface {{ lookup_bridge }}
+  shell: |
+    lxc network set {{ lookup_bridge }} ipv6.firewall false
+    lxc network set {{ lookup_bridge }} ipv4.firewall false
+
+- name: Configure ufw allow for lxc bridge interface {{ lookup_bridge }}
   when: "'ufw' in ansible_facts.packages"
   shell: |
     ufw allow in on {{ lookup_bridge }}
     ufw route allow in on {{ lookup_bridge }}
     ufw route allow out on {{ lookup_bridge }}
 
-- name: Enable IPv4 forwarding
-  sysctl:
-    name: net.ipv4.ip_forward
-    value: '1'
-    state: present
-
-- name: Configure NAT for IPv4
-  command: iptables -t nat -A POSTROUTING -s {{ ip_cidr | ansible.utils.ipaddr('subnet') }} -o {{ipv4_address_iface}} -j MASQUERADE
-  vars:
-    bridge_netmask: "{{ lookup_subnet | ansible.utils.ipaddr('prefix')}}"
-    host_index: "{{ index_key }}"
-    ip_cidr: '{{ lookup_subnet | ansible.utils.next_nth_usable(host_index | int) }}/{{ bridge_netmask }}'
-
-# - name: Persist IPv4 forwarding setting
-#   lineinfile:
-#     path: /etc/sysctl.conf
-#     regexp: '^net.ipv4.ip_forward'
-#     line: 'net.ipv4.ip_forward=1'
-
-# - name: Save iptables rules for IPv4
-#   copy:
-#     content: |
-#       *nat
-#       :PREROUTING ACCEPT [0:0]
-#       :INPUT ACCEPT [0:0]
-#       :OUTPUT ACCEPT [0:0]
-#       :POSTROUTING ACCEPT [0:0]
-#       -A POSTROUTING -s {{ ip_cidr | ansible.utils.ipaddr('subnet') }} -o {{ipv4_address_iface}} -j MASQUERADE
-#       COMMIT
-#     dest: /etc/iptables/rules.v4
-#   vars:
-#     bridge_netmask: "{{ lookup_subnet | ansible.utils.ipaddr('prefix')}}"
-#     host_index: "{{ index_key }}"
-#     ip_cidr: '{{ lookup_subnet | ansible.utils.next_nth_usable(host_index | int) }}/{{ bridge_netmask }}'
-
-# - name: Restart NetworkManager to apply changes
-#   service:
-#     name: NetworkManager
-#     state: restarted
-
-- name: Create vxlan tunnels (all-to-all)
+- name: Create lxc gre tunnels (all-to-all)
+    # lxc network set {{ lookup_bridge }} bridge.hwaddr {{random_mac}}
   shell: |-
-    ip link add {{tunnel_name}} type vxlan id {{tunnel_id}} remote {{ hostvars[item]['ipv4_address_private'] }} local {{ ipv4_address_private }} dstport 4789
-    brctl addif {{ lookup_bridge }} {{tunnel_name}}
-    ip link set dev {{tunnel_name}} up
+    lxc network set {{ lookup_bridge }} tunnel.{{peer_grename | sort | join()}}.protocol vxlan
+    lxc network set {{ lookup_bridge }} tunnel.{{peer_grename | sort | join()}}.id {{peer_grename | sort | join()}}
+    lxc network set {{ lookup_bridge }} tunnel.{{peer_grename | sort | join()}}.interface {{ipv4_address_iface}}
+    # lxc network set {{ lookup_bridge }} tunnel.{{peer_grename | sort | join()}}.port 4789
+    lxc network set {{ lookup_bridge }} tunnel.{{peer_grename | sort | join()}}.local {{ ipv4_address_private }}
+    lxc network set {{ lookup_bridge }} tunnel.{{peer_grename | sort | join()}}.remote {{ hostvars[item]['ipv4_address_private'] }}
   vars:
-    iface_id: "5{{ index_key }}{{ hostvars[item]['index_key'] }}"
+    iface_id: "1{{ index_key }}{{ hostvars[item]['index_key'] }}"
     peer_hostname: "{{hostvars[item]['ansible_nodename']}}"
-    tunnel_id: '{{iface_id | sort | join()}}'
-    tunnel_name: tunnel_{{tunnel_id}}
+    peer_grename: "1{{ index_key }}{{ hostvars[item]['index_key'] }}"
+    # random_mac: "{{ lookup_bridge_mac_prefix | community.general.random_mac }}"
   args:
-    creates: /sys/class/net/{{tunnel_name}}
+    creates: /sys/class/net/{{ lookup_bridge }}-{{ peer_grename }}
   loop: "{{ groups[ansible_limit] }}"
-  when: inventory_hostname != item and vars["ansible_" + tunnel_name] is not defined
+  when: inventory_hostname != item and vars["ansible_" + lookup_bridge + "-" + peer_grename] is not defined
+  #   vars["ansible_" + iface_name] is not defined
+  #   and inventory_hostname != item
+
 
 - name: Ping test all-to-all network connectivity
   command: |-
-    ping -c 2 {{ ip_dest }}
+    ping -c 2 {{ lookup_subnet | ansible.utils.next_nth_usable(host_index | int) }}
   vars:
     host_index: "{{ hostvars[item]['index_key'] }}"
-    ip_dest: '{{ lookup_subnet | ansible.utils.next_nth_usable(host_index | int) }}'
   loop: "{{ groups[ansible_limit] }}"
   # when: inventory_hostname != item
   register: ping_results
@@ -226,6 +201,11 @@
   delay: 3
   until: ping_results.rc == 0
 
+# - name: Test that ping tests passed
+#   fail:
+#     msg: "Ping test failed: {{item.stdout_lines}}"
+#   when: item.rc != 0
+#   loop: "{{ping_results.results}}"
 
 - name: Create ovn_uplink_interface 
   command: >-
@@ -234,17 +214,13 @@
     creates: /sys/class/net/{{ ovn_uplink_interface }}
   when: vars["ansible_" + ovn_uplink_interface] is not defined
 
-- name: Unmount ceph volume
-  when: ceph_volume_path != None
-  mount: 
-    path: '{{ ceph_volume_path }}'
-    state: unmounted
-
-- name: Unmount local volume
-  when: local_volume_path != None
-  mount: 
-    path: '{{ local_volume_path }}'
-    state: unmounted
+# - name: Show interface {{ ovn_uplink_interface }} information (for informational purposes only)
+#   when: 
+#     - vars["ansible_" + ovn_uplink_interface] is defined
+#   debug:
+#     msg: |-
+#       f"Interface {{ ovn_uplink_interface }} is active: {{ vars['ansible_' + ovn_uplink_interface].active }}"
+#   # tags: ["prerequisite"]
 
 - name: Set preseed file location
   run_once: true

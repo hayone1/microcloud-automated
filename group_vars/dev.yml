@@ -6,7 +6,7 @@ ansible_ssh_host_key_checking: false
 # if file name is dev.yml, then group_name is dev
 # group_name: dev
 # mandatory
-ansible_user: microcloud
+ansible_user: root
 # mandatory
 ansible_ssh_private_key_file: ~/.ssh/id_rsa
 ansible_ssh_public_key_file: ~/.ssh/id_rsa.pub

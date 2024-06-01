@@ -12,23 +12,19 @@ tag:
   Environment:  "test"
 
 infra_providers:
-  azure:
+  aliyun:
     quantity: 3
     size: custom
-    custom_sizes:
-      - Standard_D2s_v3
-      - Standard_D2s_v3
-      - Standard_B2s
-    security_rules:
-      allowed_ports: [22, 80, 443, 8443]
-      allowed_source_address_prefix: "0.0.0.0/0"
-      allowed_destination_address_prefix: "0.0.0.0/0"
-    # ingress_prefix
+    # custom_sizes:
+    #   - Standard_D2s_v3
+    #   - Standard_D2s_v3
+    #   - Standard_B2s
     image: # all mandatory
-      publisher : "Canonical"
-      offer     : "0001-com-ubuntu-minimal-noble-daily"
-      sku       : "minimal-24_04-daily-lts-gen2"
-      version   : "24.04.202403090"
+      owners : "system"
+      # offer     : "0001-com-ubuntu-minimal-noble-daily"
+      # sku       : "minimal-24_04-daily-lts-gen2"
+      # version   : "24.04.202403090"
+      name_regex : "^ubuntu_22.*64"
       # publisher : "Canonical"
       # offer     : "0001-com-ubuntu-server-jammy"
       # sku       : "22_04-lts"

@@ -4,7 +4,7 @@
 # always prefix it with TF_VAR so it can automatically
 # be picked up by terraform
 required_env:
-  - ARM_CLIENT_ID
-  - ARM_CLIENT_SECRET
-  - ARM_SUBSCRIPTION_ID
-  - ARM_TENANT_ID
+  - TF_VAR_ARM_CLIENT_ID
+  - TF_VAR_ARM_CLIENT_SECRET
+  - TF_VAR_ARM_SUBSCRIPTION_ID
+  - TF_VAR_ARM_TENANT_ID
