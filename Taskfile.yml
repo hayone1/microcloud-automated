@@ -315,9 +315,12 @@ tasks:
       ACTION: '{{index .MATCH 0}}'
       GROUP: '{{index .MATCH 1}}'
     cmds:
-      - |-
-        ansible-playbook --limit {{.GROUP}} --tags {{.ACTION}} \
-          --list-tasks --list-hosts {{.MAIN_PLAYBOOK}} {{.CLI_ARGS}}
+      - >-
+        ansible-playbook --limit {{.GROUP}} --tags {{.ACTION}}
+        --list-tasks --list-hosts
+        -e "ansible_ssh_pass=$TF_VAR_ANSIBLE_SSH_PASS"
+        -e "ansible_become_pass=$TF_VAR_ANSIBLE_BECOME_PASS"
+        {{.MAIN_PLAYBOOK}} {{.CLI_ARGS}}
   deploy-*-*:
     desc: |-
       Runs the tasks required to deploy microcloud on the
@@ -326,9 +329,11 @@ tasks:
       ACTION: '{{index .MATCH 0}}'
       GROUP: '{{index .MATCH 1}}'
     cmds:
-      - |
-        ansible-playbook --limit {{.GROUP}} --tags {{.ACTION}} \
-          {{.MAIN_PLAYBOOK}} {{.CLI_ARGS}}
+      - >-
+        ansible-playbook --limit {{.GROUP}} --tags {{.ACTION}}
+        -e "ansible_ssh_pass=$TF_VAR_ANSIBLE_SSH_PASS"
+        -e "ansible_become_pass=$TF_VAR_ANSIBLE_BECOME_PASS"
+        {{.MAIN_PLAYBOOK}} {{.CLI_ARGS}}
 ############# Deploy Microcloud #############
 
 

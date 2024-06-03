@@ -75,7 +75,10 @@ ___
 | References|
 |-----------|
 | https://registry.terraform.io/providers/aliyun/alicloud/latest/docs#authentication |
-| Activation of FibreNet_Unlimited_6months_50Mbps_2800 Voice for FibreNet Account  was successful and expires on 20/11/2024 16:36:13. Enjoy internet speed of up to 50Mbps and 2,800 mins for your local calls. Thank you! |
+| https://github.com/aliyun/terraform-provider-alicloud/blob/master/examples/ecs-new-vpc/main.tf |
+| https://www.alibabacloud.com/help/en/cloud-shell/use-terraform-to-manage-alibaba-cloud-resources |
+| https://registry.terraform.io/providers/aliyun/alicloud/latest/docs/resources/ecs_disk_attachment |
+| https://registry.terraform.io/providers/aliyun/alicloud/latest/docs/data-sources/instance_types |
 
 <!-- - Set the name of the ssh key you created in the `ssh_key_name:` field of each of your desired environments.
 eg. (if the key name is `root_ssh`) -->

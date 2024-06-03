@@ -167,7 +167,7 @@
     ufw route allow in on {{ lookup_bridge }}
     ufw route allow out on {{ lookup_bridge }}
 
-- name: Create lxc gre tunnels (all-to-all)
+- name: Create vxlan gre tunnels (all-to-all)
     # lxc network set {{ lookup_bridge }} bridge.hwaddr {{random_mac}}
   shell: |-
     lxc network set {{ lookup_bridge }} tunnel.{{peer_grename | sort | join()}}.protocol vxlan

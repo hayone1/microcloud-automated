@@ -92,6 +92,7 @@ A Valid Output would produce something like the below:
 | https://ydb.tech/docs/en/devops/ansible/preparing-vms-with-terraform |
 | https://ericroc.how/lxd-networking.html |
 | https://github.com/nehalineogi/azure-cross-solution-network-architectures/blob/main/advanced-linux-networking/linux-vxlan.md |
+| https://luppeng.wordpress.com/2023/01/10/make-lxd-containers-visible-on-host-network/ |
 
 ### Important
 Do not edit the root .gitignore file directly. Any pull requests with a change to the .gitignore file will be rejected.

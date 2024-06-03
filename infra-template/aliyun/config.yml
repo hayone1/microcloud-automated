@@ -4,7 +4,9 @@
 # always prefix it with TF_VAR so it can automatically
 # be picked up by terraform
 required_env:
-  - TF_VAR_ARM_CLIENT_ID
-  - TF_VAR_ARM_CLIENT_SECRET
-  - TF_VAR_ARM_SUBSCRIPTION_ID
-  - TF_VAR_ARM_TENANT_ID
+  - TF_VAR_ANSIBLE_SSH_PASS
+  - TF_VAR_ANSIBLE_BECOME_PASS
+  - ALICLOUD_ACCESS_KEY
+  - ALICLOUD_SECRET_KEY
+  - ALICLOUD_REGION
+  

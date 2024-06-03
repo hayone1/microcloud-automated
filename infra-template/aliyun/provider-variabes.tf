@@ -25,6 +25,37 @@ locals {
     local.provider_config.disk_category,
     "cloud_efficiency"
   )
+  instance_charge_type = try(
+    local.provider_config.instance_charge_type,
+    "PostPaid"
+  )
+  internet_max_bandwidth_out = try(
+    local.provider_config.internet_max_bandwidth_out,
+    "10"
+  )
+  internet_charge_type = try(
+    local.provider_config.internet_charge_type,
+    "PayByTraffic"
+  )
+  system_disk_category = try(
+    local.provider_config.system_disk_category,
+    "PayByTraffic"
+  )
+  delete_auto_snapshot = try(
+    local.provider_config.delete_auto_snapshot,
+    true
+  )
+  enable_auto_snapshot = try(
+    local.provider_config.enable_auto_snapshot,
+    false
+  )
+  encrypted = try(
+    local.provider_config.encrypted,
+    false
+  )
+  # delete_auto_snapshot = "true"
+  # enable_auto_snapshot = "true"
+  # encrypted            = "true"
 }
 
 // Zones data source for availability_zone
@@ -58,7 +89,9 @@ locals {
 }
 
 
-
+variable "ANSIBLE_SSH_PASS" {
+  type = string
+}
 
 
 

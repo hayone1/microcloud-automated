@@ -20,117 +20,84 @@ resource "alicloud_security_group" "microcloud-nsg" {
   vpc_id  = alicloud_vpc.microcloud-vpc.id
 }
 
-resource "azurerm_public_ip" "public-ips" {
-  count               = local.provider_config.quantity
-  name                = "${local.prefix}-public-ip-${count.index}"
-  location            = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
-  allocation_method   = "Dynamic"
+resource "alicloud_security_group_rule" "microcloud-sr" {
+  type              = "ingress" 
+  ip_protocol       = "tcp"
+  nic_type          = "intranet"
+  policy            = "accept"
+  port_range        = "1/65535"
+  priority          = 10
+  security_group_id = alicloud_security_group.microcloud-nsg.id
+  cidr_ip           = local.allowed_source_address_prefix
+}
+
+resource "alicloud_ecs_network_interface" "interfaces" {
+  count                   = local.provider_config.quantity
+  network_interface_name  = "${local.prefix}-interface-${count.index}"
+  vswitch_id              = alicloud_vswitch.microcloud-vswitch.id
+  security_group_ids      = [alicloud_security_group.microcloud-nsg.id]
 
   tags      = local.tags
 }
 
-resource "azurerm_network_interface" "interfaces" {
-  count                 = local.provider_config.quantity
-  name                  = "${local.prefix}-interface-${count.index}"
-  location              = azurerm_resource_group.rg.location
-  resource_group_name   = azurerm_resource_group.rg.name
+resource "alicloud_instance" "microcloud-vms" {
+  count                      = local.provider_config.quantity
+  image_id                   = data.alicloud_images.available-images.images[0].id
+  instance_type              = local.selected_server_sizes[count.index]
+  instance_name              = "${local.prefix}-vm-${count.index}"
+  host_name                  = "${local.prefix}-vm-${count.index}"
+  security_groups            = [alicloud_security_group.microcloud-nsg.id]
+  internet_charge_type       = local.internet_charge_type
+  internet_max_bandwidth_out = local.internet_max_bandwidth_out # will allow public ip
+  availability_zone          = local.chosen_availability_zone
+  instance_charge_type       = local.instance_charge_type
+  system_disk_category       = local.system_disk_category
+  vswitch_id                 = alicloud_vswitch.microcloud-vswitch.id
 
-  ip_configuration {
-    name                = "${local.prefix}-ipconfig-${count.index}"
-    subnet_id           = azurerm_subnet.microcloud-subnet.id
-    private_ip_address_allocation =  "Dynamic"
-    public_ip_address_id = azurerm_public_ip.public-ips[count.index].id
-  }
-
-  tags      = local.tags
+  password                   = var.ANSIBLE_SSH_PASS 
+  stopped_mode               = "StopCharging" 
+  tags                       = local.tags 
 }
 
-resource "azurerm_linux_virtual_machine" "microcloud-vms" {
-  count                 = local.provider_config.quantity
-  name                  = "${local.prefix}-vm-${count.index}"
-  computer_name         = "${local.prefix}-vm-${count.index}"
-  location              = azurerm_resource_group.rg.location
-  resource_group_name   = azurerm_resource_group.rg.name
-  network_interface_ids = [azurerm_network_interface.interfaces[count.index].id]
-  size                  = local.selected_server_sizes[count.index]
-  admin_username        =  local.server_user
 
-  # delete_os_disk_on_termination = true
-  # delete_data_disks_on_termination = true
+resource "alicloud_ecs_disk" "local-volumes" {
+  count               = length(local.local_volume_map)
+  disk_name           = "${local.prefix}localvolume${count.index}"
+  zone_id             = local.chosen_availability_zone
+  category            = local.system_disk_category
+  size                = local.local_volume_map[count.index]
 
-  source_image_reference {
-    publisher = local.provider_config.image.publisher
-    offer = local.provider_config.image.offer
-    sku = local.provider_config.image.sku
-    version = local.provider_config.image.version
-  }
 
-  admin_ssh_key {
-    username   = local.server_user
-    public_key = file(local.group_config.ansible_ssh_public_key_file)
-  }
+  delete_auto_snapshot = local.delete_auto_snapshot
+  enable_auto_snapshot = local.enable_auto_snapshot
+  encrypted            = local.encrypted
+  tags = local.tags
+}
+resource "alicloud_ecs_disk" "ceph-volumes" {
+  count               = length(local.local_volume_map)
+  disk_name           = "${local.prefix}cephvolume${count.index}"
+  zone_id             = local.chosen_availability_zone
+  category            = local.system_disk_category
+  size                = local.ceph_volume_map[count.index]
 
-  os_disk {
-    caching              = var.storage-caching
-    storage_account_type =  var.storage-account-type
-  }
 
-  provisioner "remote-exec" {
-    inline = [ 
-      "echo 'Waiting for cloud-init to complete...'",
-      "cloud-init status --wait > /dev/null",
-      "echo 'Completed cloud-init!'",
-     ]
-
-     connection {
-       type     = "ssh"
-       host     = self.public_ip_address
-       user     = local.server_user
-       private_key = file(local.group_config.ansible_ssh_private_key_file)
-     }
-  }
-
-  tags          = local.tags
+  delete_auto_snapshot = local.delete_auto_snapshot
+  enable_auto_snapshot = local.enable_auto_snapshot
+  encrypted            = local.encrypted
+  tags = local.tags
 }
 
-resource "azurerm_managed_disk" "local-volumes" {
-  count                 = length(local.local_volume_map)
-  name                  = "${local.prefix}localvolume${count.index}"
-  location              = azurerm_resource_group.rg.location
-  resource_group_name   = azurerm_resource_group.rg.name
-  storage_account_type  = var.storage-account-type
-  create_option         = "Empty"
-  disk_size_gb          = local.local_volume_map[count.index]
-
-  tags                  = local.tags
+resource "alicloud_ecs_disk_attachment" "local-disks-attachment" {
+  count       = length(alicloud_ecs_disk.local-volumes)
+  disk_id     = alicloud_ecs_disk.local-volumes[count.index].id
+  instance_id = alicloud_instance.microcloud-vms[count.index].id
 }
-resource "azurerm_managed_disk" "ceph-volumes" {
-  count                 = length(local.ceph_volume_map)
-  name                  = "${local.prefix}cephvolume${count.index}"
-  location              = azurerm_resource_group.rg.location
-  resource_group_name   = azurerm_resource_group.rg.name
-  storage_account_type  = var.storage-account-type
-  create_option         = "Empty"
-  disk_size_gb          = local.ceph_volume_map[count.index]
-
-  tags                  = local.tags
+resource "alicloud_ecs_disk_attachment" "ceph-disks-attachment" {
+  count       = length(alicloud_ecs_disk.ceph-volumes)
+  disk_id     = alicloud_ecs_disk.ceph-volumes[count.index].id
+  instance_id = alicloud_instance.microcloud-vms[count.index].id
 }
 
-resource "azurerm_virtual_machine_data_disk_attachment" "local-disks-attachment" {
-  count                 = length(azurerm_managed_disk.local-volumes)
-  virtual_machine_id    = azurerm_linux_virtual_machine.microcloud-vms[count.index].id
-  managed_disk_id       = azurerm_managed_disk.local-volumes[count.index].id
-  lun                   = (7 + count.index) #should be unique number
-  caching               = var.storage-caching 
-}
-resource "azurerm_virtual_machine_data_disk_attachment" "ceph-disks-attachment" {
-  count                 = length(azurerm_managed_disk.ceph-volumes)
-  virtual_machine_id    = azurerm_linux_virtual_machine.microcloud-vms[count.index].id
-  managed_disk_id       = azurerm_managed_disk.ceph-volumes[count.index].id
-  lun                   = (27 + count.index) #should be unique number
-  caching               = var.storage-caching 
-}
 # ToDO
 resource "ssh_resource" "hosts-data" {
   count       = length(azurerm_linux_virtual_machine.microcloud-vms)

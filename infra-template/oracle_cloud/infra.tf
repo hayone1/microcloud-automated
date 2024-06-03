@@ -18,7 +18,7 @@ resource "oci_core_security_list" "microcloud-security-list" {
     # manage_default_resource_id = oci_core_virtual_network.microcloud-vnet.default_security_list_id
     compartment_id  = oci_identity_compartment.tf-compartment.id
     vcn_id          = oci_core_virtual_network.microcloud-vnet.id
-    display_name    = "${local.prefix}-sr"
+    display_name    = "${local.prefix}-nsg"
     # display_name    = "${local.prefix}-security-list"
     dynamic "ingress_security_rules" {
         for_each = local.allowed_ports
