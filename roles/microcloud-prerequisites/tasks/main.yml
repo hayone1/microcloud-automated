@@ -167,7 +167,7 @@
     ufw route allow in on {{ lookup_bridge }}
     ufw route allow out on {{ lookup_bridge }}
 
-- name: Create vxlan gre tunnels (all-to-all)
+- name: Create bridge vxlan tunnels (all-to-all)
     # lxc network set {{ lookup_bridge }} bridge.hwaddr {{random_mac}}
   shell: |-
     lxc network set {{ lookup_bridge }} tunnel.{{peer_grename | sort | join()}}.protocol vxlan
@@ -191,9 +191,10 @@
 
 - name: Ping test all-to-all network connectivity
   command: |-
-    ping -c 2 {{ lookup_subnet | ansible.utils.next_nth_usable(host_index | int) }}
+    ping -c 2 {{ dest_ip }}
   vars:
     host_index: "{{ hostvars[item]['index_key'] }}"
+    dest_ip: '{{ lookup_subnet | ansible.utils.next_nth_usable(host_index | int) }}'
   loop: "{{ groups[ansible_limit] }}"
   # when: inventory_hostname != item
   register: ping_results
@@ -207,20 +208,46 @@
 #   when: item.rc != 0
 #   loop: "{{ping_results.results}}"
 
-- name: Create ovn_uplink_interface 
-  command: >-
-    lxc network create {{ ovn_uplink_interface }}
+- name: Create ovn_uplink_interface
+  when: vars["ansible_" + ovn_uplink_interface] is not defined
+  shell: |
+    brctl addbr {{ ovn_uplink_interface }}
+    ip addr add {{ ip_cidr }} dev {{ ovn_uplink_interface }}
+    ip link set {{ ovn_uplink_interface }} up
   args:
     creates: /sys/class/net/{{ ovn_uplink_interface }}
-  when: vars["ansible_" + ovn_uplink_interface] is not defined
+  vars:
+    bridge_netmask: "{{ ovn_uplink_subnet | ansible.utils.ipaddr('prefix')}}"
+    host_index: "{{ index_key }}"
+    ip_cidr: '{{ ovn_uplink_subnet | ansible.utils.next_nth_usable(host_index | int) }}/{{ bridge_netmask }}'
 
-# - name: Show interface {{ ovn_uplink_interface }} information (for informational purposes only)
-#   when: 
-#     - vars["ansible_" + ovn_uplink_interface] is defined
-#   debug:
-#     msg: |-
-#       f"Interface {{ ovn_uplink_interface }} is active: {{ vars['ansible_' + ovn_uplink_interface].active }}"
-#   # tags: ["prerequisite"]
+- name: Create ovn_uplink_interface vxlan tunnels (all-to-all)
+  shell: |-
+    ip link add {{tunnel_name}} type vxlan id {{tunnel_id}} remote {{ hostvars[item]['ipv4_address_private'] }} local {{ ipv4_address_private }} dstport 4789
+    brctl addif {{ ovn_uplink_interface }} {{tunnel_name}}
+    ip link set dev {{tunnel_name}} up
+  vars:
+    iface_id: "5{{ index_key }}{{ hostvars[item]['index_key'] }}"
+    peer_hostname: "{{hostvars[item]['ansible_nodename']}}"
+    tunnel_id: '{{iface_id | sort | join()}}'
+    tunnel_name: tunnel_{{tunnel_id}}
+  args:
+    creates: /sys/class/net/{{tunnel_name}}
+  loop: "{{ groups[ansible_limit] }}"
+  when: inventory_hostname != item and vars["ansible_" + tunnel_name] is not defined
+
+- name: Ping test ovn_uplink_interface all-to-all network connectivity
+  command: |-
+    ping -c 2 {{ dest_ip }}
+  vars:
+    host_index: "{{ hostvars[item]['index_key'] }}"
+    dest_ip: '{{ ovn_uplink_subnet | ansible.utils.next_nth_usable(host_index | int) }}'
+  loop: "{{ groups[ansible_limit] }}"
+  # when: inventory_hostname != item
+  register: ping_results
+  retries: 3
+  delay: 3
+  until: ping_results.rc == 0
 
 - name: Set preseed file location
   run_once: true
@@ -234,13 +261,13 @@
   when: inventory_hostname == ansible_play_hosts[0]
   shell: |-
     touch {{preseed_file.msg}}
-    yq -i '.lookup_subnet = "{{ lookup_subnet | ansible.utils.next_nth_usable(host_index | int) }}/{{ bridge_netmask }}" |
+    yq -i '.lookup_subnet = "{{ ovn_uplink_subnet | ansible.utils.next_nth_usable(host_index | int) }}/{{ bridge_netmask }}" |
     .lookup_interface = "{{ lookup_bridge }}"' {{preseed_file.msg}}
   become: false
     # yq -i '.lookup_subnet = "{{ lookup_subnet | ansible.utils.next_nth_usable(host_index | int) }}/{{ bridge_netmask }}" |
     # yq -i '.lookup_subnet = "{{ ipv4_address_private_cidr }}" |
   vars:
-    bridge_netmask: "{{ lookup_subnet | ansible.utils.ipaddr('prefix')}}"
+    bridge_netmask: "{{ ovn_uplink_subnet | ansible.utils.ipaddr('prefix')}}"
     host_index: "{{ hostvars[inventory_hostname]['index_key'] }}"
 
 - name: Set ovn config

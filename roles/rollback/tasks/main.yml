@@ -47,6 +47,10 @@
   command: ip link delete {{ ovn_uplink_interface }}
   ignore_errors: true
 
+- name: Delete lxc "{{ ovn_uplink_interface }}" interface
+  command: lxc network delete {{ ovn_uplink_interface }}
+  ignore_errors: true
+
 - name: Delete preseed file location
   run_once: true
   command: rm infra-{{ansible_limit}}/preseed.yml
