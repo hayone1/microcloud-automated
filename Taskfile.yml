@@ -340,7 +340,7 @@ tasks:
 ############# Deploy All #############
   microcloud-*-up:
     desc: |-
-      Deploy everything needed to run deploy-microcloud.
+      Deploy everything needed to run microcloud.
       eg. task microcloud-dev-up
     vars:
       GROUP: '{{index .MATCH 0}}'

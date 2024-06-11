@@ -1,0 +1,30 @@
+lookup_subnet: 192.168.0.2/20
+lookup_interface: mcbr_bridge
+systems:
+  - name: micro-vm-1
+    ovn_uplink_interface: eth9
+    storage:
+      local:
+        path: /dev/sdc
+        wipe: True
+      ceph:
+        - path: /dev/sdd
+          wipe: True
+  - name: micro-vm-0
+    ovn_uplink_interface: eth9
+    storage:
+      local:
+        path: /dev/sdc
+        wipe: True
+      ceph:
+        - path: /dev/sdd
+          wipe: True
+  - name: micro-vm-2
+    ovn_uplink_interface: eth9
+    storage:
+      local:
+        path: /dev/sdc
+        wipe: True
+      ceph:
+        - path: /dev/sdd
+          wipe: True

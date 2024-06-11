@@ -2,12 +2,6 @@
 - hosts: all
   become: true
   gather_facts: true
-  # tasks:
-  #   - name: Gather the package facts
-  #     package_facts:
-  #       manager: auto
-  #     tags: [prerequisite, install]
-
   # the tags are very important as they might
   # be specified by the user when running the
   # taskfile eg. task "list-init-dev" or task run-install-dev 
@@ -18,6 +12,3 @@
       tags: [install]
     - role: rollback
       tags: [rollback]
-# Associate further roles to servers in specific group in this file...
-
-# ...

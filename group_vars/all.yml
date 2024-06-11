@@ -37,14 +37,30 @@ package_dir: /usr/bin
 # or the setup will fail without a proper indication as to why
 snapd_channel: latest/stable
 lxd_channel: 5.21/stable
-microceph_channel: quincy/stable
+microceph_channel: reef/stable
 microovn_channel: 22.03/stable
-microcloud_channel: latest/stable
+microcloud_channel: latest/edge
 
 # wipe volumes assigned to local or ceph before using
 wipe_local: true
 wipe_ceph: true
 
+extra_apt_binaries:
+  - vim
+  # - make
+  - jq
+  # - build-essential
+  # - acl
+  # - libacl1-dev
+  # - libcap-dev
+  # - liblxc1
+  # - liblxc-dev
+  # - libsqlite3-dev
+  # - libudev-dev
+  # - libuv1-dev
+  # - libdqlite-dev
+extra_snap_binaries: []
+  # - go
 # `ovn` is optional and represents the OVN & uplink network configuration for LXD.
 # honestly, I don't thinnk you'd need it
 # ovn:

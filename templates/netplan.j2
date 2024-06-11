@@ -1,0 +1,21 @@
+network:
+    version: 2
+    ethernets:
+        {{ ipv4_address_iface }}:
+        match:
+            name: '{{ ipv4_address_iface }}'
+    bridges:
+        {{ lookup_bridge }}:
+        dhcp4: no
+        dhcp6: no
+        interfaces: ['{{ ipv4_address_iface }}' ]
+        addresses: [ '{{ ip_cidr }}' ]
+    tunnels:
+        {{ tunnel_config.name }}:
+            mode: vxlan
+            id: '{{tunnel_id}}'
+            link: '{{ lookup_bridge }}'
+            remote: "{{ hostvars[item]['ipv4_address_private'] }}"
+            local: "{{ ipv4_address_private }}"
+            port: "4789"
+            mac-learning: true

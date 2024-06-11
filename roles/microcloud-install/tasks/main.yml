@@ -29,29 +29,52 @@
     channel: '{{microcloud_channel}}'
     classic: no
 
+# - name: download interim microcloud
+#   # ansible.builtin.get_url:
+#   #   url: https://github.com/hayone1/microcloud/releases/download/microcloud-beta.3/microcloud.tar.gz
+#   #   dest: /tmp/microcloud.tar.gz
+#   command: |
+#     curl -L --output /tmp/microcloud.tar.gz https://github.com/hayone1/microcloud/releases/download/microcloud-beta.3/microcloud.tar.gz
+#   args:
+#     creates: /tmp/microcloud.tar.gz
+    
+# - name: untar interim microcloud
+#   unarchive:
+#     src: /tmp/microcloud.tar.gz
+#     dest: /tmp
+#     remote_src: true
+#   args:
+#     creates: /tmp/bin/microcloud
+# # - name: untar interim microcloud
+# #   command: tar -xzvf /tmp/microcloud.tar.gz
+# #   args:
+# #     creates: /tmp/bin/microcloud
+
+# - name: replace microcloud snap with interim microcloud
+#   shell: |
+#     mv /tmp/bin/microcloud /snap/bin/microcloud
+
 - name: Copy preseed file to first host
   delegate_to: '{{ansible_play_hosts[0]}}'
-  # when: inventory_hostname == ansible_play_hosts[0]
   run_once: true
   copy:
     src: ./infra-{{ansible_limit}}/preseed.yml
     dest: /tmp/infra-{{ansible_limit}}-preseed.yml
-  # register: preseed_file
-
-# - name: Kill process using port 9443
-#   command: fuser -k 9443/tcp
 
 - name: Initialize microcloud (only on first host)
-  # when: inventory_hostname == ansible_play_hosts[0]
   delegate_to: '{{ansible_play_hosts[0]}}'
   run_once: true
   shell:
-    cmd: cat /tmp/infra-{{ansible_limit}}-preseed.yml | microcloud init --preseed
+    # cmd: microcloud init --address {{address}} --auto --debug --verbose # I give up on preseed
+    cmd: >-
+      cat /tmp/infra-{{ansible_limit}}-preseed.yml |
+      microcloud init --address {{address}}
+      --preseed --debug --verbose
+      --state-dir /var/snap/microcloud/common/state
   register: init_result
-  ignore_errors: true
-  # retries: 5
-  # delay: 5
-  # until: init_result is not failed
+  # ignore_errors: true
+  vars:
+    address: '{{ lookup_subnet | ansible.utils.next_nth_usable(index_key | int) }}'
 - debug:
     msg: '{{init_result.stdout_lines}}'
 
@@ -62,4 +85,4 @@
   command: lxc cluster list
   register: lxc_cluster
 - debug:
-    msg: "{{lxc_cluster}}"
+    msg: "{{lxc_cluster.stdout_lines}}"
