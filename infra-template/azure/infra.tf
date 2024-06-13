@@ -27,32 +27,32 @@ resource "azurerm_subnet" "microcloud-subnet" {
   )
 }
 
-# resource "azurerm_network_security_group" "microcloud-sg" {
-#   name     = "${local.prefix}-sg"
-#   location = local.provider_config.region
-#   resource_group_name = azurerm_resource_group.microcloud-rg.name
+resource "azurerm_network_security_group" "microcloud-sg" {
+  name     = "${local.prefix}-sg"
+  location = local.provider_config.region
+  resource_group_name = azurerm_resource_group.microcloud-rg.name
 
-#   tags      = local.tags
-# }
+  tags      = local.tags
+}
 
-# resource "azurerm_network_security_rule" "microcloud-sr" {
-#   # for_each = tolist(["Inbound", "Outbound"])
-#   for_each = {for idx, dir in ["Inbound", "Outbound"]: idx => dir}
-#   name                        = "${local.prefix}-sr"
-#   priority                    = (100 + each.key)
-#   direction                   = each.value
-#   access                      = "Allow"
-#   protocol                    = "*"
-#   # protocol                    = "Tcp"
-#   source_port_ranges          =  local.allowed_ports
+resource "azurerm_network_security_rule" "microcloud-sr" {
+  # for_each = tolist(["Inbound", "Outbound"])
+  for_each = {for idx, dir in ["Inbound"]: idx => dir}
+  name                        = "${local.prefix}-sr"
+  priority                    = (100 + each.key)
+  direction                   = each.value
+  access                      = "Allow"
+  protocol                    = "*"
+  # protocol                    = "Tcp"
+  source_port_ranges          =  local.allowed_ports
   
-#   destination_port_ranges     = local.allowed_ports
-#   source_address_prefix       = local.allowed_source_address_prefix
-#   destination_address_prefix  = local.allowed_destination_address_prefix
-#   resource_group_name         = azurerm_resource_group.microcloud-rg.name
-#   network_security_group_name = azurerm_network_security_group.microcloud-sg.name
+  destination_port_ranges     = local.allowed_ports
+  source_address_prefix       = local.allowed_source_address_prefix
+  destination_address_prefix  = local.allowed_destination_address_prefix
+  resource_group_name         = azurerm_resource_group.microcloud-rg.name
+  network_security_group_name = azurerm_network_security_group.microcloud-sg.name
 
-# }
+}
 
 # resource "azurerm_subnet_network_security_group_association" "microcloud-sga" {
 #   subnet_id                 = azurerm_subnet.microcloud-subnet.id

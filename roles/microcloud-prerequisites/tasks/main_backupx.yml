@@ -8,6 +8,8 @@
   stat:
     path: /etc/systemd/resolved.conf
   register: resolved_stat
+# - debug:
+#     msg: default_netplan - {{default_netplan.stdout}}
 # - name: Set index based on inventory hostname
 #   set_fact:
 #     index: "{{ ansible_play_hosts.index(inventory_hostname) | int }}"
@@ -64,13 +66,6 @@
     classic: true
   loop: '{{extra_snap_binaries}}'
 
-- name: Install extra_apt_binaries
-  when: "item not in ansible_facts.packages"
-  apt:
-    name: '{{item}}'
-    state: present
-  loop: '{{extra_apt_binaries}}'
-
 - name: Install bridge-utils
   when: "'bridge-utils' not in ansible_facts.packages"
   apt:
@@ -107,6 +102,33 @@
     name: lxd-client
     state: absent
 
+- name: Install iputils-ping
+  when: "'iputils-ping' not in ansible_facts.packages"
+  apt:
+    name: iputils-ping
+    state: present
+
+- name: Install openvswitch-switch
+  when: "'openvswitch-switch' not in ansible_facts.packages"
+  apt:
+    name: openvswitch-switch
+    state: present
+
+- name: Install yq binary
+  when: "'yq' not in ansible_facts.packages"
+  shell: |-
+    curl -LO https://github.com/mikefarah/yq/releases/download/v4.34.2/yq_linux_amd64
+    mv yq_linux_amd64 yq
+    chmod +x yq
+    mv yq /usr/local/bin/
+
+- name: Install extra_apt_binaries
+  when: "item not in ansible_facts.packages"
+  apt:
+    name: '{{item}}'
+    state: present
+  loop: '{{extra_apt_binaries}}'
+
 - name: Install LXD snap (channel - {{lxd_channel}})
   # when: "'lxd' not in ansible_facts.packages"
   snap:
@@ -114,23 +136,6 @@
     channel: '{{lxd_channel}}'
     classic: no  # Avoid classic confinement (recommended)
 
-- name: Install httpry
-  when: "'httpry' not in ansible_facts.packages"
-  apt:
-    name: httpry
-    state: present
-
-- name: Install tcpflow
-  when: "'tcpflow' not in ansible_facts.packages"
-  apt:
-    name: tcpflow
-    state: present
-
-- name: Install iputils-ping
-  when: "'iputils-ping' not in ansible_facts.packages"
-  apt:
-    name: iputils-ping
-    state: present
 
 - name: Check if secondary ip exists on eth0
   shell: |
@@ -149,54 +154,99 @@
   command: ip addr del {{ secondary_ip.stdout }} dev eth0
   when: secondary_ip.stdout != ""
 
-- name: Set netplan config file location
-  debug:
-    msg: infra-{{ansible_limit}}/{{ ansible_nodename }}_netplan.yml
-  register: "{{ ansible_nodename }}_netplan"
+- name: Enable IPv4 forwarding
+  sysctl:
+    name: net.ipv4.ip_forward
+    value: '1'
+    state: present
 
-- name: Set bridge and tunnel config
-  # when: vars["ansible_" + lookup_bridge] is not defined
-  # when: bridge_check.rc != 0
-  local_action: >-
-    command yq -i --prettyPrint '. *n {{netplan | to_json}}' infra-{{ansible_limit}}/{{ ansible_nodename }}_netplan.yml
-  args:
-    creates: /sys/class/net/{{ lookup_bridge }}
+- name: Persist IPv4 forwarding setting
+  lineinfile:
+    path: /etc/sysctl.conf
+    regexp: '^net.ipv4.ip_forward'
+    line: 'net.ipv4.ip_forward=1'
+
+- name: Get default netplan
+  shell:
+    cmd: yq -o=json $(ls /etc/netplan | tail -n 1) | tr '\n' ' '
+    chdir: /etc/netplan
+  register: default_netplan
+
+- name: Get default netplan macaddress
+  shell:
+    cmd: echo {{default_netplan.stdout}} | yq '..| select(has("macaddress")) | .macaddress' | head -n 1
+  register: default_macaddress
+
+- name: Create bridge and tunnel temp configs
+  local_action:
+    module: ansible.builtin.template
+    src: templates/netplan.j2
+    dest: '{{netplan_file}}.temp{{tunnel_id}}'
   vars:
     bridge_netmask: "{{ lookup_subnet | ansible.utils.ipaddr('prefix')}}"
     host_index: "{{ index_key }}"
     ip_cidr: '{{ lookup_subnet | ansible.utils.next_nth_usable(host_index | int) }}/{{ bridge_netmask }}'
     #######
-    tunnel_iface_id: "5{{ index_key }}{{ hostvars[item]['index_key'] }}"
-    tunnel_id: '{{iface_id | sort | join()}}'
+    tunnel_iface_id: "{{ index_key }}{{ hostvars[item]['index_key'] }}"
+    tunnel_id: '{{tunnel_iface_id | sort | join()}}'
     tunnel_name: tunnel_{{tunnel_id}}
     #######
-    netplan:
-      network:
-        version: 2
-        ethernets:
-          '{{ ipv4_address_iface }}':
-            match:
-              name: '{{ ipv4_address_iface }}'
-        bridges:
-          '{{ lookup_bridge }}':
-            dhcp4: no
-            dhcp6: no
-            interfaces: ['{{ ipv4_address_iface }}' ]
-            addresses: [ '{{ ip_cidr }}' ]
-        tunnels:
-          '{{tunnel_name}}':
-            mode: vxlan
-            id: '{{tunnel_id}}'
-            link: '{{ lookup_bridge }}'
-            remote: "{{ hostvars[item]['ipv4_address_private'] }}"
-            local: "{{ ipv4_address_private }}"
-            port: "4789"
-            mac-learning: true
-
+    netplan_file: 'infra-{{ansible_limit}}/{{ ansible_nodename }}-netplan.yml'
+  when: inventory_hostname != item
   loop: "{{ groups[ansible_limit] }}"
+  become: false
 
+# - name: Get bridge ip
+#   shell: ip -o addr show | grep {{ lookup_bridge }} | awk '{print $4}' | head -n 1
+#   register: bridge_ip
 
-          
+- name: Merge bridge and tunnel configs
+  local_action:
+    module: ansible.builtin.shell
+    cmd: >-
+      yq eval-all '. as $item ireduce ({}; . * $item)'
+      *-{{ index_key }}-netplan.yml.temp* > {{ netplan_file }}
+
+      yq -i '.network.bridges.{{lookup_bridge}}.interfaces =
+      (.network.tunnels | keys)' {{ netplan_file }}
+    # creates: '{{ ansible_nodename }}-netplan.yml'
+    chdir: infra-{{ansible_limit}}
+  vars:
+    netplan_file: '{{ ansible_nodename }}-netplan.yml'
+  become: false
+
+- name: Cleanup bridge and tunnel temp configs
+  run_once: true
+  local_action:
+    module: ansible.builtin.shell
+    cmd: rm -r *-netplan.yml.temp*
+    chdir: infra-{{ansible_limit}}
+  vars:
+    netplan_file: '{{ ansible_nodename }}-netplan.yml'
+  become: false
+
+- name: Save netplan in remote host
+  copy:
+    src: '{{ netplan_file }}'
+    dest: '{{ dest_netplan_file }}'
+    # mode: '0600'
+  vars:
+    netplan_file: 'infra-{{ansible_limit}}/{{ ansible_nodename }}-netplan.yml'
+    dest_netplan_file: /etc/netplan/10{{index_key}}-microcloud.yaml
+  
+- name: Merge all netplan in new netplan in host
+  command:
+    cmd: |-
+      yq -i '. * {{default_netplan.stdout}}' {{ dest_netplan_file }}
+    chdir: /etc/netplan
+  vars:
+    dest_netplan_file: '10{{index_key}}-microcloud.yaml'
+
+- name: Apply netplan config immediately
+  shell: chmod 600 {{dest_netplan_file}} && netplan apply
+  vars:
+    dest_netplan_file: /etc/netplan/10{{index_key}}-microcloud.yaml
+
 # - name: Create bridge interface {{ lookup_bridge }}
 #   when: vars["ansible_" + lookup_bridge] is not defined
 #   # when: bridge_check.rc != 0
@@ -232,31 +282,27 @@
     name: systemd-resolved
     state: restarted
 
-# - name: Disable firewall on lxc bridge interface {{ lookup_bridge }}
-#   shell: |
-#     lxc network set {{ lookup_bridge }} ipv6.firewall false
-#     lxc network set {{ lookup_bridge }} ipv4.firewall false
-
-- name: Configure ufw allow for lxc bridge interface {{ lookup_bridge }}
+- name: Configure ufw allow on bridge interface {{ lookup_bridge }}
   when: "'ufw' in ansible_facts.packages"
   shell: |
     ufw allow in on {{ lookup_bridge }}
     ufw route allow in on {{ lookup_bridge }}
     ufw route allow out on {{ lookup_bridge }}
 
-# - name: Create vxlan tunnels (all-to-all)
-#   shell: |-
-#     ip link add {{tunnel_name}} type vxlan id {{tunnel_id}} remote {{ hostvars[item]['ipv4_address_private'] }} local {{ ipv4_address_private }} dstport 4789
-#     brctl addif {{ lookup_bridge }} {{tunnel_name}}
-#     ip link set dev {{tunnel_name}} up
-#   vars:
-#     iface_id: "5{{ index_key }}{{ hostvars[item]['index_key'] }}"
-#     tunnel_id: '{{iface_id | sort | join()}}'
-#     tunnel_name: tunnel_{{tunnel_id}}
-#   args:
-#     creates: /sys/class/net/{{tunnel_name}}
-#   loop: "{{ groups[ansible_limit] }}"
-#   when: inventory_hostname != item and vars["ansible_" + tunnel_name] is not defined
+- name: Create vxlan tunnels (all-to-all)
+  shell: |-
+    ip link add {{tunnel_name}} type vxlan id {{tunnel_id}} remote {{ hostvars[item]['ipv4_address_private'] }} local {{ ipv4_address_private }} dstport 4789
+    brctl addif {{ lookup_bridge }} {{tunnel_name}}
+    ip link set dev {{tunnel_name}} up
+  vars:
+    iface_id: "5{{ index_key }}{{ hostvars[item]['index_key'] }}"
+    peer_hostname: "{{hostvars[item]['ansible_nodename']}}"
+    tunnel_id: '{{iface_id | sort | join()}}'
+    tunnel_name: tunnel_{{tunnel_id}}
+  args:
+    creates: /sys/class/net/{{tunnel_name}}
+  loop: "{{ groups[ansible_limit] }}"
+  when: inventory_hostname != item and vars["ansible_" + tunnel_name] is not defined
 
 - name: Ping test all-to-all network connectivity
   command: |-

@@ -70,7 +70,7 @@
       cat /tmp/infra-{{ansible_limit}}-preseed.yml |
       microcloud init --address {{address}}
       --preseed --debug --verbose
-      --state-dir /var/snap/microcloud/common/state
+    # --state-dir /var/snap/microcloud/common/state
   register: init_result
   # ignore_errors: true
   vars:

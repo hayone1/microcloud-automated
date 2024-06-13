@@ -4,7 +4,7 @@
 # I am unable to get network to have a good config
 network:
     version: 2
-    #renderer: networkd
+    renderer: networkd
     vrfs:
         vrf1005:
             table: 1005
@@ -17,17 +17,6 @@ network:
             interfaces: [ '{{ tunnel_name}}' ]
             addresses: [ '{{ ip_cidr }}' ]
             macaddress: {{ default_macaddress.stdout }}
-            openvswitch:
-                protocols: [OpenFlow10, OpenFlow11, OpenFlow12]
-                controller:
-                    addresses: [unix:/var/run/openvswitch/{{ lookup_bridge }}.mgmt]
-                    connection-mode: out-of-band
-                fail-mode: secure
-                mcast-snooping: true
-                external-ids:
-                    iface-id: {{ ansible_nodename }}
-                other-config:
-                    disable-in-band: true
     tunnels:
         {{ tunnel_name}}:
             mode: vxlan

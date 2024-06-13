@@ -58,7 +58,7 @@ resource "digitalocean_volume" "local-volumes" {
   name                    = "${local.prefix}localvolume${count.index}"
   region                  = local.provider_config.region
   size                    = local.local_volume_map[count.index]
-  initial_filesystem_type = try(local.provider_config.initial_filesystem_type, "ext4")
+  initial_filesystem_type = local.initial_filesystem_type
   description             = "Volume to be used for microcloud storage."
   tags = [for tag in digitalocean_tag.tags : tag.id]
 }
@@ -67,7 +67,7 @@ resource "digitalocean_volume" "ceph-volumes" {
   name                      = "${local.prefix}cephvolume${count.index}"
   region                    = local.provider_config.region
   size                      = local.ceph_volume_map[count.index]
- initial_filesystem_type = try(local.provider_config.initial_filesystem_type, "ext4")
+  initial_filesystem_type   = local.initial_filesystem_type
   description               = "Volume to be used for microcloud storage."
   tags = [for tag in digitalocean_tag.tags : tag.id]
 }

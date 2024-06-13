@@ -48,7 +48,8 @@ wipe_ceph: true
 extra_apt_binaries:
   - vim
   # - make
-  - jq
+  # - jq
+  # - tcpflow
   # - build-essential
   # - acl
   # - libacl1-dev

@@ -1,0 +1,53 @@
+# ipv4_address: 52.167.200.49
+# hostname: micro-vm-2
+# bridge_ipv4_address: 192.168.0.3/20
+# I am unable to get network to have a good config
+# ipv4_address: 52.167.200.49
+# hostname: micro-vm-2
+# bridge_ipv4_address: 192.168.0.3/20
+# I am unable to get network to have a good config
+network:
+  version: 2
+  #renderer: networkd
+  vrfs:
+    vrf1005:
+      table: 1005
+      interfaces:
+        - mcbr_bridge
+  bridges:
+    mcbr_bridge:
+      dhcp4: true
+      dhcp6: false
+      interfaces: [tunnel_02, tunnel_12]
+      addresses: ['192.168.0.3/20']
+      macaddress: 60:45:bd:83:db:f4
+      openvswitch:
+        protocols: [OpenFlow10, OpenFlow11, OpenFlow12]
+        controller:
+          addresses: ['unix:/var/run/openvswitch/mcbr_bridge.mgmt']
+          connection-mode: out-of-band
+        fail-mode: secure
+        mcast-snooping: true
+        external-ids:
+          iface-id: micro-vm-2
+        other-config:
+          disable-in-band: true
+  tunnels:
+    tunnel_02:
+      mode: vxlan
+      id: '02'
+      link: 'eth0'
+      remote: "10.0.0.4"
+      local: "10.0.0.5"
+      port: 4789
+      mac-learning: false
+      mtu: 8950
+    tunnel_12:
+      mode: vxlan
+      id: '12'
+      link: 'eth0'
+      remote: "10.0.0.6"
+      local: "10.0.0.5"
+      port: 4789
+      mac-learning: false
+      mtu: 8950

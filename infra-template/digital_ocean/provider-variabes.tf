@@ -26,3 +26,7 @@ locals {
       ]
   )
 }
+
+locals {
+  initial_filesystem_type = try(local.provider_config.initial_filesystem_type, "xfs")
+}
