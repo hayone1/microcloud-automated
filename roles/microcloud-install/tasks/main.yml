@@ -1,12 +1,8 @@
 ---
-# - name: Gather the package facts
-#   package_facts:
-#     manager: auto
-
-# - name: Refresh all snaps
-#   snap:
-#     name: "*"
-#     state: present
+- name: Check if the resolved.conf exists
+  stat:
+    path: /etc/systemd/resolved.conf
+  register: resolved_stat
 
 - name: Install Microceph snap (channel - '{{microceph_channel}}')
   # when: "'microceph' not in ansible_facts.packages"
@@ -15,7 +11,7 @@
     channel: '{{microceph_channel}}'
     classic: no
 
-- name: Install MicroOVN snap (channel - '{{microovn_channel}}')
+- name: Install Microovn snap (channel - '{{microovn_channel}}')
   # when: "'microovn' not in ansible_facts.packages"
   snap:
     name: microovn
@@ -61,6 +57,20 @@
     src: ./infra-{{ansible_limit}}/preseed.yml
     dest: /tmp/infra-{{ansible_limit}}-preseed.yml
 
+- name: Reboot
+  ansible.builtin.reboot:
+
+- name: Test mDNS all-to-all connectivity
+  command: resolvectl query -4 {{peer_hostname}}.local
+  vars:
+    peer_hostname: "{{hostvars[item]['ansible_nodename']}}"
+  loop: "{{ groups[ansible_limit] }}"
+  register: mDNS_results
+  retries: 3
+  delay: 3
+  until: mDNS_results.rc == 0
+  when: resolved_stat.stat.exists
+
 - name: Initialize microcloud (only on first host)
   delegate_to: '{{ansible_play_hosts[0]}}'
   run_once: true
@@ -72,10 +82,11 @@
       --preseed --debug --verbose
     # --state-dir /var/snap/microcloud/common/state
   register: init_result
-  # ignore_errors: true
+  ignore_errors: true
   vars:
     address: '{{ lookup_subnet | ansible.utils.next_nth_usable(index_key | int) }}'
 - debug:
+    run_once: true
     msg: '{{init_result.stdout_lines}}'
 
 - name: Show LXC Cluster
@@ -85,4 +96,5 @@
   command: lxc cluster list
   register: lxc_cluster
 - debug:
+    when: init_result.rc == 0
     msg: "{{lxc_cluster.stdout_lines}}"

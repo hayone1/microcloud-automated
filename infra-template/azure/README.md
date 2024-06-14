@@ -20,7 +20,21 @@ to get a basic idea of how to setup this provider or if you encounter issues wit
 - Run `az login`, authenticate with azure, pick a subscription and take note of the Subscription ID.
 If your terminal shows a url along with an `Operation not supported` message, simply copy or `ctrl` + Click the url
 to open it in your browser.
-> Tip: Instead of using your own device, you can just use [azure cloud shell](https://shell.azure.com). You also can see more ways to login with the cli [here](https://learn.microsoft.com/en-us/cli/azure/authenticate-azure-cli-interactively).
+
+- Your subscriptions will be listed and a a prompt will appear in the console to pick a the subscription
+you'd like to use
+eg:
+```
+No     Subscription name    Subscription ID                       Tenant
+-----  -------------------  ------------------------------------  -----------------
+[1] *  Azure for Students   xxxxxxxx-xxxxxxxx-xxxxxxxxx-xxxxxxxx  Default Directory
+[2]    Dev Subscription     xxxxxxxx-xxxxxxxx-xxxxxxxxx-xxxxxxxx  Default Directory
+
+The default is marked with an *; the default tenant is 'Default Directory' and subscription is 'Azure for Students' (e1e09e0b-6770-427c-9e73-6e649878f781).
+
+Select a subscription and tenant (Type a number or Enter for no changes): 2
+```
+> Tip: Instead of installing the az cli locally, you can just use [azure cloud shell](https://shell.azure.com). You also can see more ways to login with the cli [here](https://learn.microsoft.com/en-us/cli/azure/authenticate-azure-cli-interactively).
 
 - Create a service principal and assign the least role and scopes you think it should have.
 Example for a blanket role/scope:
@@ -39,25 +53,25 @@ The output includes credentials that you must protect. Be sure that you do not i
 }
 ```
 
-- Export the above values as environment variables with the following keys.
+- You can choose to export the above values as environment variables with the following keys.
 eg.
 ``` bash
-export ARM_CLIENT_ID="<APPID_VALUE>"
-export ARM_CLIENT_SECRET="<PASSWORD_VALUE>"
+export ARM_CLIENT_ID="<appId>"
+export ARM_CLIENT_SECRET="<password>"
 export ARM_SUBSCRIPTION_ID="<SUBSCRIPTION_ID>"
-export ARM_TENANT_ID="<TENANT_VALUE>"
+export ARM_TENANT_ID="<tenant>"
 ```
-- If you don't want to export the variable all the time, you can create one of the following env files(priority is as listed) and put the environment variables there:
+- If you don't want to export the variable all the time, you can create **at least one of** the following env files(priority is as listed) and put the environment variables there:
     - `<group-name>.env` file in the `group_vars` folder eg. dev.env(Highest priority).
     - `.env` file in the `group_vars` folder.
     - `.env` file at the root of the project (lowest priority).
 
 The content will look like this:
 ```
-TF_VAR_ARM_CLIENT_ID=xxxxxxxx
-TF_VAR_ARM_CLIENT_SECRET=yyyyyyy
-TF_VAR_ARM_SUBSCRIPTION_ID=zzzzzzzzz
-TF_VAR_ARM_TENANT_ID=tttttttttttt
+ARM_CLIENT_ID=xxxxxxxx
+ARM_CLIENT_SECRET=yyyyyyy
+ARM_SUBSCRIPTION_ID=zzzzzzzzz
+ARM_TENANT_ID=tttttttttttt
 ```
 > Tip: .env files don't need double quotes.
 
@@ -78,8 +92,9 @@ azure:
     tag:
         prov: "do"
 ```
-> Tip: Before configuring your sizing, you should consider checking the subscription resource quota limits
+> Tip: Before configuring your sizing, you should consider checking your subscription resource quota limits
 for your chosen region. eg. `az vm list-usage --location "West US 2" --output table`
+
 - You can return back to the main [README](../../README.md) to complete the setup.
 ___
 

@@ -41,6 +41,7 @@ digital_ocean:
     tag:
         prov: "do"
 ```
+> Tip: Before configuring your sizing, you should consider checking the subscription resource quota limits for your chosen region.
 
 - You can return back to the main [README](xxx) to complete the setup.
 ___

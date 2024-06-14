@@ -1,26 +1,19 @@
-# ipv4_address: 52.167.207.21
+# ipv4_address: 20.12.0.118
 # hostname: micro-vm-0
-# bridge_ipv4_address: 192.168.0.1/20
-# I am unable to get network to have a good config
-# ipv4_address: 52.167.207.21
+# bridge_ipv4_cidr: 192.168.0.1/20
+# ipv4_address: 20.12.0.118
 # hostname: micro-vm-0
-# bridge_ipv4_address: 192.168.0.1/20
-# I am unable to get network to have a good config
+# bridge_ipv4_cidr: 192.168.0.1/20
 network:
   version: 2
-  #renderer: networkd
-  vrfs:
-    vrf1005:
-      table: 1005
-      interfaces:
-        - mcbr_bridge
+  renderer: networkd
   bridges:
     mcbr_bridge:
       dhcp4: true
       dhcp6: false
       interfaces: [tunnel_01, tunnel_02]
       addresses: ['192.168.0.1/20']
-      macaddress: 60:45:bd:b3:63:11
+      macaddress: 60:45:bd:84:05:24
       openvswitch:
         protocols: [OpenFlow10, OpenFlow11, OpenFlow12]
         controller:
@@ -37,7 +30,7 @@ network:
       mode: vxlan
       id: '01'
       link: 'eth0'
-      remote: "10.0.0.6"
+      remote: "10.0.0.5"
       local: "10.0.0.4"
       port: 4789
       mac-learning: false
@@ -46,7 +39,7 @@ network:
       mode: vxlan
       id: '02'
       link: 'eth0'
-      remote: "10.0.0.5"
+      remote: "10.0.0.6"
       local: "10.0.0.4"
       port: 4789
       mac-learning: false

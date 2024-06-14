@@ -2,10 +2,6 @@
 
 # Add variables which apply to servers in a specific group to this file...
 ansible_ssh_host_key_checking: false
-# mandatory, should be the name of this group
-# if file name is dev.yml, then group_name is dev
-# group_name: dev
-# mandatory
 ansible_user: root
 # mandatory
 ansible_ssh_private_key_file: ~/.ssh/id_rsa
@@ -34,7 +30,8 @@ infra_providers:
   #       hostname: orangepi800
   digital_ocean:
     quantity: 3
-    size: nano
+    # "nano" "micro" "small" "medium" "large" "xlarge" "2xlarge" "custom"
+    size: medium
     region: "nyc3"
     image: 
       sku: ubuntu-24-04-x64
