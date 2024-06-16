@@ -58,6 +58,8 @@ tasks:
         fi
   envvar_check:
     desc: Verify the required provider environment variables are set.
+    internal: true
+    silent: true
     vars:
       # get from parent
       PROVIDER: '{{default "undefined" .PROVIDER}}'
@@ -325,6 +327,7 @@ tasks:
     desc: |-
       Runs the tasks required to deploy microcloud on the
       given infrastructure. eg. task deploy-init-all, task deploy-install-dev
+    dotenv: ['./group_vars/{{.GROUP}}.env', './group_vars/.env', '.env']
     vars:
       ACTION: '{{index .MATCH 0}}'
       GROUP: '{{index .MATCH 1}}'

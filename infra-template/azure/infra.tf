@@ -59,7 +59,7 @@ resource "azurerm_network_security_rule" "microcloud-sr" {
 #   network_security_group_id = azurerm_network_security_group.microcloud-sg.id
 # }
 
-resource "azurerm_public_ip" "public-ips" {
+resource "azurerm_public_ip" "microcloud-public-ips" {
   count               = local.provider_config.quantity
   name                = "${local.prefix}-public-ip-${count.index}"
   location            = azurerm_resource_group.microcloud-rg.location
@@ -79,7 +79,7 @@ resource "azurerm_network_interface" "interfaces" {
     name                = "${local.prefix}-ipconfig-${count.index}"
     subnet_id           = azurerm_subnet.microcloud-subnet.id
     private_ip_address_allocation =  "Dynamic"
-    public_ip_address_id = azurerm_public_ip.public-ips[count.index].id
+    public_ip_address_id = azurerm_public_ip.microcloud-public-ips[count.index].id
   }
 
   tags      = local.tags
@@ -88,12 +88,12 @@ resource "azurerm_network_interface" "interfaces" {
 resource "azurerm_linux_virtual_machine" "microcloud-vms" {
   count                 = local.provider_config.quantity
   name                  = "${local.prefix}-vm-${count.index}"
-  computer_name         = "${local.prefix}-vm-${count.index}"
+  computer_name         = substr("${local.prefix}-vm-${count.index}", 0, 15) // 15 char limit
   location              = azurerm_resource_group.microcloud-rg.location
   resource_group_name   = azurerm_resource_group.microcloud-rg.name
   network_interface_ids = [azurerm_network_interface.interfaces[count.index].id]
   size                  = local.selected_server_sizes[count.index]
-  admin_username        =  local.server_user
+  admin_username        = local.server_user
 
   # delete_os_disk_on_termination = true
   # delete_data_disks_on_termination = true
@@ -115,6 +115,7 @@ resource "azurerm_linux_virtual_machine" "microcloud-vms" {
     storage_account_type =  var.storage-account-type
   }
 
+  tags                   = local.tags
   provisioner "remote-exec" {
     inline = [ 
       "echo 'Waiting for cloud-init to complete...'",
@@ -123,14 +124,13 @@ resource "azurerm_linux_virtual_machine" "microcloud-vms" {
      ]
 
      connection {
-       type     = "ssh"
-       host     = self.public_ip_address
-       user     = local.server_user
-       private_key = file(local.group_config.ansible_ssh_private_key_file)
+       type         = "ssh"
+       host         = self.public_ip_address
+       user         = local.server_user
+       private_key  = file(local.group_config.ansible_ssh_private_key_file)
      }
   }
 
-  tags          = local.tags
 }
 
 resource "azurerm_managed_disk" "local-volumes" {

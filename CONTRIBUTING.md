@@ -83,11 +83,11 @@ A Valid Output would produce something like the below:
 }
 ```
 
-### Useful Links
+  ### Useful Links
 
-| Link    |
-| -------- |
-| https://canonical-microcloud.readthedocs-hosted.com/en/latest/tutorial/get_started/  |
+  | Link    |
+  | -------- |
+  | https://canonical-microcloud.readthedocs-hosted.com/en/latest/tutorial/get_started/  |
 | https://developer.hashicorp.com/terraform/tutorials  |
 | https://ydb.tech/docs/en/devops/ansible/preparing-vms-with-terraform |
 | https://ericroc.how/lxd-networking.html |

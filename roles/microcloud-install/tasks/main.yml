@@ -84,7 +84,7 @@
   register: init_result
   ignore_errors: true
   vars:
-    address: '{{ lookup_subnet | ansible.utils.next_nth_usable(index_key | int) }}'
+    address: '{{ lookup_subnet | ansible.utils.next_nth_usable(host_index | int) }}'
 - debug:
     run_once: true
     msg: '{{init_result.stdout_lines}}'

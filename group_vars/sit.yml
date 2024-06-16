@@ -3,7 +3,7 @@
 # Add variables which apply to servers in a specific group to this file...
 ansible_ssh_host_key_checking: false
 ansible_user: orangepi
-ansible_become_user: orangepi
+# ansible_become_user: orangepi
 # mandatory
 ansible_ssh_private_key_file: ~/.ssh/id_rsa
 ansible_ssh_public_key_file: ~/.ssh/id_rsa.pub
@@ -26,12 +26,20 @@ infra_providers:
         ipv4_address_iface: eth0
         ipv4_address_private: 192.168.0.145
         ipv4_address_private_iface: eth0
+        local_volume_path: /dev/sda2
       192.168.0.147:
         ceph_volume_path: /dev/mmcblk0p1
         hostname: orangepi4-lts
-        index_key: 1
-        ipv4_address_private: "192.168.0.147/24" # [mandatory]
-      192.168.0.144:
-        ipv4_address_private: "192.168.0.144/24" # [mandatory]
-        hostname: orangepi800
-        index_key: 2
+        # index_key: 1
+        ipv4_address: 192.168.0.147
+        ipv4_address_iface: eth0
+        ipv4_address_private: 192.168.0.147
+        ipv4_address_private_iface: eth0
+        local_volume_path: /dev/mmcblk0p2
+      # 192.168.0.144:
+      #   hostname: orangepi800
+      #   index_key: 2
+      #   ipv4_address: 192.168.0.144 # [mandatory]
+      #   ipv4_address_iface: eno0
+      #   ipv4_address_private: 192.168.0.144 # [mandatory]
+      #   ipv4_address_private_iface: eno0

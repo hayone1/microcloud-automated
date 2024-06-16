@@ -167,15 +167,8 @@
     regexp: '^net.ipv4.ip_forward'
     line: 'net.ipv4.ip_forward=1'
 
-- name: Get default netplan
-  shell:
-    cmd: yq -o=json $(ls /etc/netplan | tail -n 1) | tr '\n' ' '
-    chdir: /etc/netplan
-  register: default_netplan
-
 - name: Get private iface macaddress
   shell:
-    # cmd: echo {{default_netplan.stdout}} | yq '..| select(has("macaddress")) | .macaddress' | tail -n 1
     cmd: ip addr show {{ ipv4_address_private_iface }} | grep link/ether | awk '{print $2}'
   register: default_macaddress
 
@@ -186,14 +179,13 @@
     dest: '{{netplan_file}}.temp{{tunnel_id}}'
   vars:
     bridge_netmask: "{{ lookup_subnet | ansible.utils.ipaddr('prefix')}}"
-    host_index: "{{ host_index }}"
-    ip_cidr: '{{ lookup_subnet | ansible.utils.next_nth_usable(host_index | int) }}/{{ bridge_netmask }}'
+    ip_cidr: '{{ lookup_subnet | ansible.utils.next_nth_usable(index_key | int) }}/{{ bridge_netmask }}'
     #######
-    tunnel_iface_id: "{{ host_index }}{{ hostvars[item]['host_index'] }}"
+    tunnel_iface_id: "{{ index_key }}{{ hostvars[item]['index_key'] }}"
     tunnel_id: '{{tunnel_iface_id | sort | join()}}'
     tunnel_name: tunnel_{{tunnel_id}}
     #######
-    netplan_file: 'infra-{{ansible_limit}}/{{ ansible_nodename }}-netplan.yml'
+    netplan_file: 'infra-{{ansible_limit}}/{{ ansible_nodename }}-{{ index_key }}-netplan.yml'
   when: inventory_hostname != item
   loop: "{{ groups[ansible_limit] }}"
   become: false
@@ -207,12 +199,13 @@
     module: ansible.builtin.shell
     cmd: >-
       yq eval-all '. as $item ireduce ({}; . * $item)'
-      *-{{ host_index }}-netplan.yml.temp* > {{ netplan_file }}
-
+      *-{{ index_key }}-netplan.yml.temp* > {{ netplan_file }}
+      &&
       yq -i '.network.bridges.{{lookup_bridge}}.interfaces =
       (.network.tunnels | keys)' {{ netplan_file }}
-
-      yq -i '.network.ethernets.{{ipv4_address_private_iface}}.dhcp4 = false
+      &&
+      yq -i '.network.ethernets.{{ipv4_address_private_iface}}.dhcp4 = false'
+      {{ netplan_file }}
     # creates: '{{ ansible_nodename }}-netplan.yml'
     chdir: infra-{{ansible_limit}}
   vars:
@@ -236,7 +229,13 @@
     # mode: '0600'
   vars:
     netplan_file: 'infra-{{ansible_limit}}/{{ ansible_nodename }}-netplan.yml'
-    dest_netplan_file: /etc/netplan/10{{host_index}}-microcloud.yaml
+    dest_netplan_file: /etc/netplan/10{{index_key}}-microcloud.yaml
+  
+- name: Get default netplan
+  shell:
+    cmd: yq -o=json $(ls /etc/netplan | tail -n 1) | tr '\n' ' '
+    chdir: /etc/netplan
+  register: default_netplan
   
 - name: Merge all netplan in new netplan in host
   command:
@@ -244,24 +243,24 @@
       yq -i '. * {{default_netplan.stdout}}' {{ dest_netplan_file }}
     chdir: /etc/netplan
   vars:
-    dest_netplan_file: '10{{host_index}}-microcloud.yaml'
+    dest_netplan_file: '10{{index_key}}-microcloud.yaml'
 
 - name: Apply netplan config
   shell: chmod 600 {{dest_netplan_file}} && netplan apply
   vars:
-    dest_netplan_file: /etc/netplan/10{{host_index}}-microcloud.yaml
+    dest_netplan_file: /etc/netplan/10{{index_key}}-microcloud.yaml
 
 - name: Remove openvswitch-switch config from netplan( hack )
   command:
     cmd: |-
       yq -i 'del(.network.bridges.{{lookup_bridge}}.openvswitch)' {{ dest_netplan_file }}
   vars:
-    dest_netplan_file: /etc/netplan/10{{host_index}}-microcloud.yaml
+    dest_netplan_file: /etc/netplan/10{{index_key}}-microcloud.yaml
 
 - name: Re-apply netplan config
   shell: netplan generate && netplan apply
   vars:
-    dest_netplan_file: /etc/netplan/10{{host_index}}-microcloud.yaml
+    dest_netplan_file: /etc/netplan/10{{index_key}}-microcloud.yaml
 
 - name: Activate promiscus mode for bridge {{lookup_bridge}}
   command: ip link set {{lookup_bridge}} promisc on
@@ -275,14 +274,28 @@
   # notify: restart_resolved  # Trigger restart after modification
   when: resolved_stat.stat.exists
 
-# - name: Enable per-link MulticastDNS for {{ ipv4_address_iface }}
-#   command: resolvectl mdns {{ ipv4_address_iface }} yes
-#   when: resolved_stat.stat.exists
-
 - name: Enable per-link MulticastDNS for {{ lookup_bridge }}
   command: resolvectl mdns {{ lookup_bridge }} yes
   when: resolved_stat.stat.exists
-  # notify: restart_resolved  # Trigger restart after modification
+
+- name: Get main network file
+  shell: ls /run/systemd/network | head -n 1
+  register: main_network_file
+
+- name: Create drop-in network file
+  shell: |-
+    mkdir /etc/systemd/network/{{main_network_file.stdout}}.d
+    touch /etc/systemd/network/{{main_network_file.stdout}}.d/override.conf
+  when: main_network_file.stdout != ""
+
+- name: Enable global MulticastDNS in override.conf
+  lineinfile:
+    path: /etc/systemd/network/{{main_network_file.stdout}}.d/override.conf
+    line: |-
+      [Network]
+      MulticastDNS=yes
+    state: present
+  when: main_network_file.stdout != ""
 
 - name: Restart systemd-resolved Immediately
   service:
@@ -301,8 +314,8 @@
   command: |-
     ping -c 2 {{ dest_ip }}
   vars:
-    host_index: "{{ hostvars[item]['host_index'] }}"
-    dest_ip: '{{ lookup_subnet | ansible.utils.next_nth_usable(host_index | int) }}'
+    index_key: "{{ hostvars[item]['index_key'] }}"
+    dest_ip: '{{ lookup_subnet | ansible.utils.next_nth_usable(index_key | int) }}'
   loop: "{{ groups[ansible_limit] }}"
   # when: inventory_hostname != item
   register: ping_results
@@ -332,12 +345,12 @@
   when: inventory_hostname == ansible_play_hosts[0]
   shell: |-
     touch {{preseed_file.msg}}
-    yq -i '.lookup_subnet = "{{ lookup_subnet | ansible.utils.next_nth_usable(host_index | int) }}/{{ bridge_netmask }}" |
+    yq -i '.lookup_subnet = "{{ lookup_subnet | ansible.utils.next_nth_usable(index_key | int) }}/{{ bridge_netmask }}" |
     .lookup_interface = "{{ lookup_bridge }}"' {{preseed_file.msg}}
   become: false
   vars:
     bridge_netmask: "{{ lookup_subnet | ansible.utils.ipaddr('prefix')}}"
-    host_index: "{{ hostvars[inventory_hostname]['host_index'] }}"
+    index_key: "{{ hostvars[inventory_hostname]['index_key'] }}"
 
 - name: Set ovn config
   when: ovn is defined
