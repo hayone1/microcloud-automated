@@ -50,26 +50,40 @@
 #   shell: |
 #     mv /tmp/bin/microcloud /snap/bin/microcloud
 
+# - name: Reboot
+#   ansible.builtin.reboot:
+
+# - name: Enable per-link MulticastDNS for {{ lookup_bridge }}
+#   command: resolvectl mdns {{ lookup_bridge }} yes
+#   when: resolved_stat.stat.exists
+
+# - name: Test mDNS all-to-all connectivity
+#   command: resolvectl query -4 {{peer_hostname}}.local
+#   vars:
+#     peer_hostname: "{{hostvars[item]['ansible_nodename']}}"
+#   loop: "{{ groups[ansible_limit] }}"
+#   register: mDNS_results
+#   retries: 3
+#   delay: 3
+#   until: mDNS_results.rc == 0
+#   when: resolved_stat.stat.exists
+
+- name: Next Steps
+  delegate_to: '{{ansible_play_hosts[0]}}'
+  run_once: true
+  debug:
+    msg: >-
+      use_preseed is set to false, you'll need
+      to run 'microcloud init'on any of the servers
+  when: use_preseed is defined and use_preseed != true
+
 - name: Copy preseed file to first host
   delegate_to: '{{ansible_play_hosts[0]}}'
   run_once: true
   copy:
     src: ./infra-{{ansible_limit}}/preseed.yml
     dest: /tmp/infra-{{ansible_limit}}-preseed.yml
-
-- name: Reboot
-  ansible.builtin.reboot:
-
-- name: Test mDNS all-to-all connectivity
-  command: resolvectl query -4 {{peer_hostname}}.local
-  vars:
-    peer_hostname: "{{hostvars[item]['ansible_nodename']}}"
-  loop: "{{ groups[ansible_limit] }}"
-  register: mDNS_results
-  retries: 3
-  delay: 3
-  until: mDNS_results.rc == 0
-  when: resolved_stat.stat.exists
+  when: use_preseed is not defined or use_preseed == true
 
 - name: Initialize microcloud (only on first host)
   delegate_to: '{{ansible_play_hosts[0]}}'
@@ -84,10 +98,13 @@
   register: init_result
   ignore_errors: true
   vars:
-    address: '{{ lookup_subnet | ansible.utils.next_nth_usable(host_index | int) }}'
+    address: '{{ lookup_subnet | ansible.utils.next_nth_usable(index_key | int) }}'
+  when: use_preseed is not defined or use_preseed == true
 - debug:
-    run_once: true
     msg: '{{init_result.stdout_lines}}'
+  when: init_result is defined
+  run_once: true
+  when: init_result is defined
 
 - name: Show LXC Cluster
   when: init_result.rc == 0
@@ -96,5 +113,5 @@
   command: lxc cluster list
   register: lxc_cluster
 - debug:
-    when: init_result.rc == 0
     msg: "{{lxc_cluster.stdout_lines}}"
+  when: init_result.rc == 0

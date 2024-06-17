@@ -9,6 +9,7 @@ ansible_ssh_public_key_file: ~/.ssh/id_rsa.pub
 
 # general prefix that will be used to anem things
 prefix: micro
+use_preseed: false
 
 # some providers will use only the values
 # while others will use the keys and values
@@ -20,14 +21,6 @@ tag:
 # |digital_ocean|
 # you can also put arbitrary values
 infra_providers:
-  # self_hosted:
-  #   hosts:  # only host field will be used if specified
-  #     192.168.0.145: # public IP
-  #       ipv4_address_private: "192.168.0.145/24" # [mandatory]
-  #       hostname: orangepi4-lts
-  #     192.168.0.147: # public IP
-  #       ipv4_address_private: "192.168.0.147/24" # [mandatory]
-  #       hostname: orangepi800
   digital_ocean:
     quantity: 3
     # "nano" "micro" "small" "medium" "large" "xlarge" "2xlarge" "custom"

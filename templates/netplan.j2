@@ -6,7 +6,7 @@ network:
     renderer: networkd
     bridges:
         {{ lookup_bridge }}:
-            dhcp4: false
+            dhcp4: true
             dhcp6: false
             interfaces: [ '{{ tunnel_name}}' ]
             addresses: [ '{{ ip_cidr }}' ]
