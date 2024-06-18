@@ -1,0 +1,38 @@
+# ipv4_address: 192.168.0.148
+# hostname: orangepi4-lts
+# bridge_ipv4_cidr: 192.168.0.11/24
+network:
+  version: 2
+  renderer: NetworkManager
+  ethernets:
+    eth0:
+      addresses: ['192.168.0.147/24']
+      nameservers:
+        addresses: ["8.8.8.8", "8.8.4.4"]
+      routes:
+        - to: default
+          via: 192.168.0.1
+  vlans:
+    vlan0:
+      accept-ra: no
+      id: 15
+      link: eth0
+  bridges:
+    mcbr_bridge:
+      #dhcp4: true
+      #dhcp6: false
+      interfaces: [tunnel_01, vlan0]
+      addresses: ['192.168.0.11/24']
+      # macaddress: da:97:b1:17:db:66
+      nameservers:
+        addresses: ["8.8.8.8", "8.8.4.4"]
+  tunnels:
+    tunnel_01:
+      mode: vxlan
+      id: '01'
+      link: 'eth0'
+      remote: "192.168.0.145"
+      local: "192.168.0.148"
+      port: 4789
+      # mac-learning: false
+      mtu: 9000

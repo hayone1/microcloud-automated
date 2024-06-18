@@ -142,10 +142,10 @@ tasks:
         cmd: |-
           mkdir -p ./infra-{{.GROUP}}
           
-          host_exists=$(yq '.infra_providers.{{.ITEM}} |
+          custom_host_exists=$(yq '.infra_providers.{{.ITEM}} |
             has("hosts")' 'group_vars/{{.GROUP}}.yml')
           
-          if  [[ "$host_exists" == 'false' &&
+          if  [[ "$custom_host_exists" == 'false' &&
                 -d {{.INFRA_TEMPLATE}}/{{.ITEM}} &&
                 {{.ACTION}} != destroy ]]; then
             cp -r {{.INFRA_TEMPLATE}}/{{.ITEM}} ./infra-{{.GROUP}}
@@ -157,11 +157,11 @@ tasks:
           PROVIDER: '{{ .ITEM }}'
           ACTION: '{{ .ACTION }}'
         # silent: true
-      - |-
-        if [[ {{.ACTION}} == destroy ]]; then
-          yq --inplace 'del(.{{.GROUP}})' hosts.yml
-          rm -rf infra-{{.GROUP}}
-        fi
+      - cmd: |-
+          if [[ {{.ACTION}} == destroy ]]; then
+            yq --inplace 'del(.{{.GROUP}})' hosts.yml
+            rm -rf infra-{{.GROUP}}
+          fi
 
   plan-provider-infra:
     desc: outputs the terraform plan for the configured infra of specified cloud provider.
@@ -182,7 +182,7 @@ tasks:
         fi
 
   create-provider-infra:
-    desc: deploys the configured infra for the specified cloud provider.
+    desc: deploys the configured infra for the specified cloud or custom provider.
     internal: true
     # silent: true
     vars:
@@ -202,19 +202,20 @@ tasks:
     # which should be exported in the shell or in one  of these .env files
     dotenv: ['./group_vars/{{.GROUP}}.env', './group_vars/.env', '.env']
     cmds:
-      # condition: if the provider's folder has been created and the tfstate file does not exist yet
-      - |
-        current_utc_time=$(date -u)
-        if [[ -d ./infra-{{.GROUP}}/{{.PROVIDER}} &&
-            (
-              (! -f ./infra-{{.GROUP}}/{{.PROVIDER}}/terraform.tfstate) ||
-              {{.ACTION}} = update
-            ) 
-           ]]; then
-          terraform -chdir=./infra-{{.GROUP}}/{{.PROVIDER}} init
-          # using utc time to cater for oracle_cloud's requirements
-          faketime -f "$current_utc_time" terraform -chdir=./infra-{{.GROUP}}/{{.PROVIDER}} apply {{.CLI_ARGS}}
-        fi
+      # condition: if the provider's folder has been created and the tfstate file does not exist yet.
+      # this will thus be skipped if using custom provider
+      - cmd: |-
+          current_utc_time=$(date -u)
+          if [[ -d ./infra-{{.GROUP}}/{{.PROVIDER}} &&
+              (
+                (! -f ./infra-{{.GROUP}}/{{.PROVIDER}}/terraform.tfstate) ||
+                {{.ACTION}} = update
+              ) 
+            ]]; then
+            terraform -chdir=./infra-{{.GROUP}}/{{.PROVIDER}} init
+            # using utc time to cater for oracle_cloud's requirements
+            faketime -f "$current_utc_time" terraform -chdir=./infra-{{.GROUP}}/{{.PROVIDER}} apply {{.CLI_ARGS}}
+          fi
       - task: '{{.GET_IP_TASK}}'
         vars:
           GROUP: '{{.GROUP}}'
@@ -247,8 +248,14 @@ tasks:
           yq -o=yaml --prettyPrint eval-all --inplace 'select(fileIndex == 1) as $provider_hosts |
               select(fileIndex == 0) |
               .{{.GROUP}}.children.{{.PROVIDER}}.hosts =
-                (.{{.GROUP}}.children.{{.PROVIDER}}.hosts * $provider_hosts |
-              sort_keys(..))' hosts.yml -)
+                ($provider_hosts | sort_keys(..))' hosts.yml -)
+      # - |
+      #   result=$(echo "$HOSTS" |
+      #     yq -o=yaml --prettyPrint eval-all --inplace 'select(fileIndex == 1) as $provider_hosts |
+      #         select(fileIndex == 0) |
+      #         .{{.GROUP}}.children.{{.PROVIDER}}.hosts =
+      #           (.{{.GROUP}}.children.{{.PROVIDER}}.hosts * $provider_hosts |
+      #         sort_keys(..))' hosts.yml -)
 
         # echo "${result//" <remove-this>"/''}" > hosts.yml
       - echo "✅️ hosts.yml updated successfully"
@@ -262,18 +269,25 @@ tasks:
       PROVIDER: '{{default "undefined" .PROVIDER}}'
     cmds:
     # 1 is the source(right), 0 is the destination(left)
-    - | 
-      echo "HOSTS for [{{.GROUP}}|{{.PROVIDER}}]:"
-      echo "$(yq -o=json '.infra_providers.{{.PROVIDER}}.hosts |
-        to_entries |
-        map({"ipv4_address": .key, "ipv4_address_private": .value.ipv4_address_private})' \
-        ./group_vars/{{.GROUP}}.yml)"
-    - |
-      yq --inplace eval-all '(select(fileIndex == 1) | .infra_providers.{{.PROVIDER}}.hosts) as $provider_hosts |
-                    select(fileIndex == 0) |
-                    .{{.GROUP}}.children.{{.PROVIDER}}.hosts = (.{{.GROUP}}.children.{{.PROVIDER}}.hosts * $provider_hosts | sort_keys(..))' \
-          hosts.yml ./group_vars/{{.GROUP}}.yml
-    - echo "✅️ hosts.yml updated successfully"
+    - cmd: |- 
+        echo "HOSTS for [{{.GROUP}}|{{.PROVIDER}}]:"
+        echo "$(yq -o=json '.infra_providers.{{.PROVIDER}}.hosts |
+          to_entries |
+          map({"ipv4_address": .key, "ipv4_address_private": .value.ipv4_address_private})' \
+          ./group_vars/{{.GROUP}}.yml)"
+    - cmd: >-
+        yq --inplace eval-all '(select(fileIndex == 1) |
+          .infra_providers.{{.PROVIDER}}.hosts) as $provider_hosts |
+           select(fileIndex == 0) |
+          .{{.GROUP}}.children.{{.PROVIDER}}.hosts = ($provider_hosts | sort_keys(..))' \
+        hosts.yml ./group_vars/{{.GROUP}}.yml
+    # - cmd: >-
+    #     yq --inplace eval-all '(select(fileIndex == 1) |
+    #         .infra_providers.{{.PROVIDER}}.hosts) as $provider_hosts |
+    #          select(fileIndex == 0) |
+    #         .{{.GROUP}}.children.{{.PROVIDER}}.hosts = (.{{.GROUP}}.children.{{.PROVIDER}}.hosts * $provider_hosts | sort_keys(..))' \
+    #         hosts.yml ./group_vars/{{.GROUP}}.yml
+    - cmd: echo "✅️ hosts.yml updated successfully"
 
   ############# Deploy Infra #############
 

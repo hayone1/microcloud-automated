@@ -3,25 +3,29 @@
 # bridge_ipv4_cidr: {{ ip_cidr }}
 network:
     version: 2
-    renderer: networkd
+    renderer: NetworkManager
+    ethernets:
+        {{ ipv4_address_private_iface }}:
+            addresses: [ '{{ default_ip_cidr.stdout }}' ]
+            nameservers:
+                addresses: ["8.8.8.8", "8.8.4.4"]
+            routes:
+                - to: default
+                  via: {{ default_gateway.stdout_lines[0] }}
+    vlans:
+        {{ vlan_name }}:
+            accept-ra: no
+            id: 15
+            link: {{ ipv4_address_private_iface }}
     bridges:
         {{ lookup_bridge }}:
-            dhcp4: true
-            dhcp6: false
+            #dhcp4: true
+            #dhcp6: false
             interfaces: [ '{{ tunnel_name}}' ]
-            addresses: [ '{{ ip_cidr }}' ]
-            macaddress: {{ default_macaddress.stdout }}
-            openvswitch:
-                protocols: [OpenFlow10, OpenFlow11, OpenFlow12]
-                controller:
-                    addresses: [unix:/var/run/openvswitch/{{ lookup_bridge }}.mgmt]
-                    connection-mode: out-of-band
-                fail-mode: secure
-                mcast-snooping: true
-                external-ids:
-                    iface-id: {{ ansible_nodename }}
-                other-config:
-                    disable-in-band: true
+            addresses: [ '{{ lookup_ip }}/{{ bridge_prefix }}' ]
+            # macaddress: {{ default_macaddress.stdout }}
+            nameservers:
+                addresses: ["8.8.8.8", "8.8.4.4"]
     tunnels:
         {{ tunnel_name}}:
             mode: vxlan
@@ -30,5 +34,5 @@ network:
             remote: "{{ hostvars[item]['ipv4_address_private'] }}"
             local: "{{ ipv4_address_private }}"
             port: 4789
-            mac-learning: false
-            mtu: 8950
+            # mac-learning: false
+            mtu: 9000

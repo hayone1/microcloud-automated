@@ -3,3 +3,5 @@
 brctl addbr {{ lookup_bridge }}
 ip addr add {{ ip_cidr }} dev {{ lookup_bridge }}
 ip link set {{ lookup_bridge }} up
+
+resolvectl mdns {{ lookup_bridge }} yes

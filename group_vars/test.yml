@@ -5,7 +5,7 @@ ansible_ssh_private_key_file: ~/.ssh/id_rsa
 ansible_ssh_public_key_file: ~/.ssh/id_rsa.pub
 
 prefix: micro
-
+use_preseed: false
 tag:
   System:       "microcloud"
   Creator:      "terraform"
@@ -13,8 +13,7 @@ tag:
 
 infra_providers:
   azure:
-    quantity: 1
-    use_preseed: false
+    quantity: 3
     size: custom
     custom_sizes:
       - Standard_D2s_v3
@@ -34,8 +33,8 @@ infra_providers:
       # offer     : "0001-com-ubuntu-server-jammy"
       # sku       : "22_04-lts"
       # version   : "latest"
-    # local_volume_sizes: [3]
-    # ceph_volume_sizes: [3]
+    local_volume_sizes: [3]
+    ceph_volume_sizes: [3]
     region: "westus"
     tag:
       Provider: "azure"

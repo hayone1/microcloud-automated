@@ -10,5 +10,7 @@
       tags: [init]
     - role: microcloud-install
       tags: [install]
+    - role: update-cache
+      tags: [cache]
     - role: rollback
       tags: [rollback]

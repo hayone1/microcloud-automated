@@ -1,0 +1,10 @@
+#!/bin/bash
+
+# don't run for other interfaces
+if [[ "$1" != "{{ipv4_address_private_iface}}" ]] ||
+    [[ "$2" != "up" ]];
+    then exit 0 
+fi
+ip link add {{tunnel_name}} type vxlan id {{tunnel_id}} remote {{ hostvars[item]['ipv4_address_private'] }} local {{ ipv4_address_private }} dstport 4789
+brctl addif {{ lookup_bridge }} {{tunnel_name}}
+ip link set dev {{tunnel_name}} up

@@ -3,12 +3,7 @@
 # bridge_ipv4_cidr: {{ ip_cidr }}
 network:
     version: 2
-    #renderer: networkd
-    vrfs:
-        vrf1005:
-            table: 1005
-            interfaces:
-                - {{ lookup_bridge }}
+    renderer: NetworkManager
     bridges:
         {{ lookup_bridge }}:
             dhcp4: true
@@ -31,7 +26,7 @@ network:
         {{ tunnel_name}}:
             mode: vxlan
             id: '{{tunnel_id}}'
-            link: '{{ ipv4_address_iface }}'
+            link: '{{ ipv4_address_private_iface }}'
             remote: "{{ hostvars[item]['ipv4_address_private'] }}"
             local: "{{ ipv4_address_private }}"
             port: 4789

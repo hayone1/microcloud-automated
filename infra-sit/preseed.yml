@@ -1,0 +1,12 @@
+lookup_subnet: 192.168.0.10/24
+lookup_interface: mcbr_bridge
+systems:
+  - name: orangepi4-lts
+    ovn_uplink_interface: mcbr_bridge
+    storage:
+      local:
+        path: /dev/mmcblk0p2
+        wipe: True
+      ceph:
+        - path: /dev/mmcblk0p1
+          wipe: True

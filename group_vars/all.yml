@@ -36,6 +36,7 @@ package_dir: /usr/bin
 # be careful with the hannelvalues, ensure they are correct
 # or the setup will fail without a proper indication as to why
 snapd_channel: latest/stable
+core_channel: latest/stable
 lxd_channel: 5.21/stable
 microceph_channel: reef/stable
 microovn_channel: 22.03/stable
@@ -48,9 +49,9 @@ wipe_ceph: true
 
 extra_apt_binaries:
   - vim
+  # - tcpflow
   # - make
   # - jq
-  # - tcpflow
   # - build-essential
   # - acl
   # - libacl1-dev
@@ -62,7 +63,9 @@ extra_apt_binaries:
   # - libuv1-dev
   # - libdqlite-dev
 extra_snap_binaries: []
-  # - go
+  # - name: go
+  #   channel: latest/stable
+  #   classic: true
 # `ovn` is optional and represents the OVN & uplink network configuration for LXD.
 # honestly, I don't thinnk you'd need it
 # ovn:

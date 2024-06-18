@@ -4,71 +4,54 @@
     path: /etc/systemd/resolved.conf
   register: resolved_stat
 
-- name: Install Microceph snap (channel - '{{microceph_channel}}')
+- name: Install Microceph snap
   # when: "'microceph' not in ansible_facts.packages"
   snap:
     name: microceph
-    channel: '{{microceph_channel}}'
-    classic: no
+    channel: "{{microceph_channel | default('reef/stable') }}"
+    classic: false
 
-- name: Install Microovn snap (channel - '{{microovn_channel}}')
+- name: Install Microovn snap
   # when: "'microovn' not in ansible_facts.packages"
   snap:
     name: microovn
     channel: '{{microovn_channel}}'
     classic: no
 
-- name: Install Microcloud snap (channel - '{{microcloud_channel}}')
+- name: Install Microcloud snap
   # when: "'microcloud' not in ansible_facts.packages"
   snap:
     name: microcloud
     channel: '{{microcloud_channel}}'
     classic: no
 
-# - name: download interim microcloud
-#   # ansible.builtin.get_url:
-#   #   url: https://github.com/hayone1/microcloud/releases/download/microcloud-beta.3/microcloud.tar.gz
-#   #   dest: /tmp/microcloud.tar.gz
-#   command: |
-#     curl -L --output /tmp/microcloud.tar.gz https://github.com/hayone1/microcloud/releases/download/microcloud-beta.3/microcloud.tar.gz
-#   args:
-#     creates: /tmp/microcloud.tar.gz
-    
-# - name: untar interim microcloud
-#   unarchive:
-#     src: /tmp/microcloud.tar.gz
-#     dest: /tmp
-#     remote_src: true
-#   args:
-#     creates: /tmp/bin/microcloud
-# # - name: untar interim microcloud
-# #   command: tar -xzvf /tmp/microcloud.tar.gz
-# #   args:
-# #     creates: /tmp/bin/microcloud
+- name: Reboot
+  ansible.builtin.reboot:
 
-# - name: replace microcloud snap with interim microcloud
-#   shell: |
-#     mv /tmp/bin/microcloud /snap/bin/microcloud
+- name: Ping test all-to-all network connectivity
+  command: |-
+    ping -c 2 {{ ip_dest }}
+  vars:
+    index_key: "{{ hostvars[item]['index_key'] }}"
+    ip_dest: '{{ lookup_subnet | ansible.utils.next_nth_usable(index_key | int) }}'
+  loop: "{{ groups[ansible_limit] }}"
+  register: ping_results
+  retries: 3
+  delay: 3
+  until: ping_results.rc == 0
 
-# - name: Reboot
-#   ansible.builtin.reboot:
+- name: Test mDNS all-to-all connectivity
+  command: resolvectl query -4 {{peer_hostname}}.local
+  vars:
+    peer_hostname: "{{hostvars[item]['ansible_nodename']}}"
+  loop: "{{ groups[ansible_limit] }}"
+  register: mDNS_results
+  retries: 3
+  delay: 3
+  until: mDNS_results.rc == 0
+  when: resolved_stat.stat.exists
 
-# - name: Enable per-link MulticastDNS for {{ lookup_bridge }}
-#   command: resolvectl mdns {{ lookup_bridge }} yes
-#   when: resolved_stat.stat.exists
-
-# - name: Test mDNS all-to-all connectivity
-#   command: resolvectl query -4 {{peer_hostname}}.local
-#   vars:
-#     peer_hostname: "{{hostvars[item]['ansible_nodename']}}"
-#   loop: "{{ groups[ansible_limit] }}"
-#   register: mDNS_results
-#   retries: 3
-#   delay: 3
-#   until: mDNS_results.rc == 0
-#   when: resolved_stat.stat.exists
-
-- name: Next Steps
+- name: Show Next Steps
   delegate_to: '{{ansible_play_hosts[0]}}'
   run_once: true
   debug:
@@ -102,9 +85,8 @@
   when: use_preseed is not defined or use_preseed == true
 - debug:
     msg: '{{init_result.stdout_lines}}'
-  when: init_result is defined
   run_once: true
-  when: init_result is defined
+  when: init_result is succeeded
 
 - name: Show LXC Cluster
   when: init_result.rc == 0

@@ -4,31 +4,14 @@
 - name: Gather the package facts
   package_facts:
     manager: auto
-# - name: Set index based on inventory hostname
-#   set_fact:
-#     index: "{{ ansible_play_hosts.index(inventory_hostname) | int }}"
-# - name: Generate random MAC address with prefix
-#   set_fact:
-#     random_mac: "{{ lookup_bridge_mac_prefix | community.general.random_mac }}"
-# - name: Print the package facts
-#   ansible.builtin.debug:
-#     var: ansible_facts.packages
-#   # tags: ["prerequisite"]
-# - name: Show interface
-#   debug:
-#     msg: "{{ anible_facts['mcbr_bridge'] }}"
-    # msg: "{{ hostvars[host]['ansible_facts']['eth1']['ipv4']['address'] }}"
-# - name: Show interfaces
-#   debug:
-#     msg: "{{ ansible_interfaces }}"
-
-# - name: Get loaded modules
-#   register: loaded_modules
-#   command: lsmod
+- name: Check if the resolved.conf exists
+  stat:
+    path: /etc/systemd/resolved.conf
+  register: resolved_stat
 
 ###### Uncomment this
-- name: Update package lists
-  apt: update_cache=yes
+# - name: Update package lists
+#   apt: update_cache=yes
 
 - name: Install snapd package
   when: "'snapd' not in ansible_facts.packages"
@@ -36,22 +19,38 @@
     name: snapd
     state: present
 
-- name: Set snapd version
-  # when: "'snapd' not in ansible_facts.packages"
-  snap:
-    name: snapd
-    state: present
-    channel: '{{snapd_channel}}'
+# - name: Set snapd version
+#   # when: "'snapd' not in ansible_facts.packages"
+#   snap:
+#     name: snapd
+#     state: present
+#     channel: '{{snapd_channel}}'
   
-- name: Set snapd version using command
-  command: snap refresh snapd --channel={{snapd_channel}}
+- name: Set snapd version using shell
+  shell: |-
+      snapd_channel=$(snap list snapd | grep snapd | awk '{print $4}')
+      if [[ "$snapd_channel" != {{channel}} ]]; then
+        snap refresh snapd --channel={{channel}}
+      fi
+  vars:
+    channel: "{{snapd_channel | default('latest/stable') }}"
+
 
 - name: Install core snap
   when: "'snapd' not in ansible_facts.packages"
   snap:
     name: core
     state: present
-  # tags: ["prerequisite"]
+    channel: "{{core_channel | default('latest/stable') }}"
+  
+
+- name: Install extra_snap_binaries
+  snap:
+    name: '{{item.name}}'
+    state: present
+    channel: '{{item.channel}}'
+    classic: '{{item.classic | bool}}'
+  loop: '{{extra_snap_binaries}}'
 
 - name: Install bridge-utils
   when: "'bridge-utils' not in ansible_facts.packages"
@@ -71,6 +70,12 @@
     name: network-manager
     state: present
 
+- name: Uninstall avahi-daemon
+  when: "'avahi-daemon' in ansible_facts.packages"
+  apt:
+    name: avahi-daemon
+    state: absent
+
 - name: Uninstall existing apt LXD
   # when: "'lxd' in ansible_facts.packages"
   apt:
@@ -78,29 +83,10 @@
     state: absent
 
 - name: Uninstall existing apt lxd-client
-  # when: "'lxd-client' in ansible_facts.packages"
+  when: "'lxd-client' in ansible_facts.packages"
   apt:
     name: lxd-client
     state: absent
-
-- name: Install LXD snap (channel - {{lxd_channel}})
-  # when: "'lxd' not in ansible_facts.packages"
-  snap:
-    name: lxd
-    channel: '{{lxd_channel}}'
-    classic: no  # Avoid classic confinement (recommended)
-
-- name: Install httpry
-  when: "'httpry' not in ansible_facts.packages"
-  apt:
-    name: httpry
-    state: present
-
-- name: Install tcpflow
-  when: "'tcpflow' not in ansible_facts.packages"
-  apt:
-    name: tcpflow
-    state: present
 
 - name: Install iputils-ping
   when: "'iputils-ping' not in ansible_facts.packages"
@@ -108,17 +94,42 @@
     name: iputils-ping
     state: present
 
-- name: Install iptables
-  when: "'iptables' not in ansible_facts.packages"
-  apt:
-    name: iptables
-    state: present
+- name: Install yq binary
+  when: "'yq' not in ansible_facts.packages"
+  shell: |-
+    arch=$(dpkg --print-architecture)
+    curl -LO "https://github.com/mikefarah/yq/releases/download/v4.31.1/yq_linux_${arch}"
+    mv "yq_linux_${arch}" yq
+    chmod +x yq
+    mv yq /usr/local/bin/
+  args:
+    creates: /usr/local/bin/yq
 
-- name: Install iptables-persistent
-  when: "'iptables-persistent' not in ansible_facts.packages"
+- name: Install extra_apt_binaries
+  when: "item not in ansible_facts.packages"
   apt:
-    name: iptables-persistent
+    name: '{{item}}'
     state: present
+  loop: '{{extra_apt_binaries}}'
+
+- name: Install LXD snap
+  # when: "'lxd' not in ansible_facts.packages"
+  snap:
+    name: lxd
+    channel: "{{lxd_channel | default('reef/stable') }}"
+    classic: false  # Avoid classic confinement (recommended)
+
+# - name: Install iptables
+#   when: "'iptables' not in ansible_facts.packages"
+#   apt:
+#     name: iptables
+#     state: present
+
+# - name: Install iptables-persistent
+#   when: "'iptables-persistent' not in ansible_facts.packages"
+#   apt:
+#     name: iptables-persistent
+#     state: present
 
 - name: Check if secondary ip exists on {{ipv4_address_iface}}
   shell: |
@@ -130,26 +141,97 @@
         fi
     }
   register: secondary_ip
-# - debug:
-#     msg: secondary ip - {{secondary_ip.stdout}}
 
 - name: Delete secondary ip
   command: ip addr del {{ secondary_ip.stdout }} dev {{ipv4_address_iface}}
   when: secondary_ip.stdout != ""
 
-- name: Create bridge interface {{ lookup_bridge }}
-  when: vars["ansible_" + lookup_bridge] is not defined
-  # when: bridge_check.rc != 0
-  shell: |
-    brctl addbr {{ lookup_bridge }}
-    ip addr add {{ ip_cidr }} dev {{ lookup_bridge }}
-    ip link set {{ lookup_bridge }} up
-  args:
-    creates: /sys/class/net/{{ lookup_bridge }}
+- name: Get private iface macaddress
+  shell:
+    cmd: ip addr show {{ ipv4_address_private_iface }} | grep link/ether | awk '{print $2}'
+  register: default_macaddress
+
+- name: Get default gateway
+  shell:
+    cmd: ip route | grep default | awk '{print $3}'
+  register: default_gateway
+
+- name: Get private iface ip_cidr
+  shell:
+    cmd: ip addr show {{ ipv4_address_private_iface }} | grep 'inet ' | awk '{print $2}'
+  register: default_ip_cidr
+
+- name: Create bridge and tunnel temp configs
+  local_action:
+    module: ansible.builtin.template
+    src: templates/netplan.j2
+    dest: '{{netplan_file}}.temp{{tunnel_id}}'
   vars:
-    bridge_netmask: "{{ lookup_subnet | ansible.utils.ipaddr('prefix')}}"
-    host_index: "{{ index_key }}"
-    ip_cidr: '{{ lookup_subnet | ansible.utils.next_nth_usable(host_index | int) }}/{{ bridge_netmask }}'
+    bridge_prefix: "{{ lookup_subnet | ansible.utils.ipaddr('prefix')}}"
+    lookup_ip: '{{ lookup_subnet | ansible.utils.next_nth_usable(index_key | int) }}'
+    # ip_cidr: '{{ lookup_ip }}/{{ bridge_prefix }}'
+    #######
+    tunnel_iface_id: "{{ index_key }}{{ hostvars[item]['index_key'] }}"
+    tunnel_id: '{{tunnel_iface_id | sort | join()}}'
+    tunnel_name: tunnel_{{tunnel_id}}
+    #######
+    netplan_file: 'infra-{{ansible_limit}}/{{ ansible_nodename }}-{{ index_key }}-netplan.yml'
+    vlan_name: "{{vlan | default('vlan0')}}"
+  when: inventory_hostname != item
+  loop: "{{ groups[ansible_limit] }}"
+  become: false
+
+- name: Merge bridge and tunnel configs
+  local_action:
+    module: ansible.builtin.shell
+    cmd: >-
+      yq eval-all '. as $item ireduce ({}; . * $item)'
+      *-{{ index_key }}-netplan.yml.temp* > {{ netplan_file }}
+      &&
+      yq -i '.network.bridges.{{lookup_bridge}}.interfaces =
+      (.network.tunnels | keys)' {{ netplan_file }}
+      &&
+      yq -i '.network.bridges.{{lookup_bridge}}.interfaces =
+      (.network.tunnels | keys) + "{{ vlan_name }}"' {{ netplan_file }}
+    # creates: '{{ ansible_nodename }}-netplan.yml'
+    chdir: infra-{{ansible_limit}}
+  vars:
+    netplan_file: '{{ ansible_nodename }}-{{ index_key }}-netplan.yml'
+    vlan_name: "{{vlan | default('vlan0')}}"
+  become: false
+
+- name: Cleanup bridge and tunnel temp configs
+  run_once: true
+  local_action:
+    module: ansible.builtin.shell
+    cmd: rm -r *-netplan.yml.temp*
+    chdir: infra-{{ansible_limit}}
+  vars:
+    netplan_file: '{{ ansible_nodename }}-netplan.yml'
+  become: false
+
+# - name: Get default netplan
+#   shell:
+#     cmd: yq -o=json $(ls /etc/netplan | tail -n 1) | tr '\n' ' '
+#   register: default_netplan
+
+- name: Set mode for default netplan
+  shell:
+    cmd: chmod 600 "/etc/netplan/$(ls /etc/netplan | tail -n 1)"
+    
+- name: Save netplan in remote host
+  copy:
+    src: '{{ netplan_file }}'
+    dest: '{{ dest_netplan_file }}'
+    mode: '0600'
+  vars:
+    netplan_file: 'infra-{{ansible_limit}}/{{ ansible_nodename }}-{{ index_key }}-netplan.yml'
+    dest_netplan_file: /etc/netplan/10{{index_key}}-microcloud.yaml
+
+# - name: Apply netplan config
+#   shell: netplan generate && netplan apply
+#   vars:
+#     dest_netplan_file: /etc/netplan/10{{index_key}}-microcloud.yaml
 
 # - name: Configure ufw allow for bridge interface {{ lookup_bridge }}
 #   when: "'ufw' in ansible_facts.packages"
@@ -158,47 +240,44 @@
 #     ufw route allow in on {{ lookup_bridge }}
 #     ufw route allow out on {{ lookup_bridge }}
 
-- name: Enable IPv4 forwarding
-  sysctl:
-    name: net.ipv4.ip_forward
-    value: '1'
-    state: present
 
-- name: Create vxlan tunnels (all-to-all)
-  shell: |-
-    ip link add {{tunnel_name}} type vxlan id {{tunnel_id}} remote {{ hostvars[item]['ipv4_address_private'] }} local {{ ipv4_address_private }} dstport 4789
-    brctl addif {{ lookup_bridge }} {{tunnel_name}}
-    ip link set dev {{tunnel_name}} up
-  vars:
-    iface_id: "5{{ index_key }}{{ hostvars[item]['index_key'] }}"
-    peer_hostname: "{{hostvars[item]['ansible_nodename']}}"
-    tunnel_id: '{{iface_id | sort | join()}}'
-    tunnel_name: tunnel_{{tunnel_id}}
-  args:
-    creates: /sys/class/net/{{tunnel_name}}
-  loop: "{{ groups[ansible_limit] }}"
-  when: inventory_hostname != item and vars["ansible_" + tunnel_name] is not defined
+- name: Enable global MulticastDNS in resolved.conf
+  lineinfile:
+    path: /etc/systemd/resolved.conf
+    regexp: '^#?MulticastDNS='  # Matches commented or uncommented line
+    line: MulticastDNS=yes
+    state: present  # Ensure line exists with desired value
+  # notify: restart_resolved  # Trigger restart after modification
+  when: resolved_stat.stat.exists
+  
+# - name: Enable IPv4 forwarding
+#   sysctl:
+#     name: net.ipv4.ip_forward
+#     value: '1'
+#     state: present
 
-- name: Ping test all-to-all network connectivity
-  command: |-
-    ping -c 2 {{ ip_dest }}
-  vars:
-    host_index: "{{ hostvars[item]['index_key'] }}"
-    ip_dest: '{{ lookup_subnet | ansible.utils.next_nth_usable(host_index | int) }}'
-  loop: "{{ groups[ansible_limit] }}"
-  # when: inventory_hostname != item
-  register: ping_results
-  retries: 3
-  delay: 3
-  until: ping_results.rc == 0
+# - name: Persist IPv4 forwarding setting
+#   lineinfile:
+#     path: /etc/sysctl.conf
+#     regexp: '^net.ipv4.ip_forward'
+#     line: 'net.ipv4.ip_forward=1'
 
+# # creating new file to avoid cloud init override
+# - name: Set netplan renderer to NetworkManager
+#   copy:
+#     dest: /etc/netplan/50-NetworkManager.yaml
+#     content: |
+#       network:
+#         version: 2
+#         renderer: NetworkManager
+#     mode: '0600'
 
-- name: Create ovn_uplink_interface 
-  command: >-
-    lxc network create {{ ovn_uplink_interface }}
-  args:
-    creates: /sys/class/net/{{ ovn_uplink_interface }}
-  when: vars["ansible_" + ovn_uplink_interface] is not defined
+# - name: Create ovn_uplink_interface 
+#   command: >-
+#     lxc network create {{ ovn_uplink_interface }}
+#   args:
+#     creates: /sys/class/net/{{ ovn_uplink_interface }}
+#   when: vars["ansible_" + ovn_uplink_interface] is not defined
 
 - name: Unmount ceph volume
   when: ceph_volume_path != None
@@ -224,14 +303,12 @@
   when: inventory_hostname == ansible_play_hosts[0]
   shell: |-
     touch {{preseed_file.msg}}
-    yq -i '.lookup_subnet = "{{ lookup_subnet | ansible.utils.next_nth_usable(host_index | int) }}/{{ bridge_netmask }}" |
+    yq -i '.lookup_subnet = "{{ lookup_subnet | ansible.utils.next_nth_usable(index_key | int) }}/{{ bridge_netmask }}" |
     .lookup_interface = "{{ lookup_bridge }}"' {{preseed_file.msg}}
   become: false
-    # yq -i '.lookup_subnet = "{{ lookup_subnet | ansible.utils.next_nth_usable(host_index | int) }}/{{ bridge_netmask }}" |
-    # yq -i '.lookup_subnet = "{{ ipv4_address_private_cidr }}" |
   vars:
     bridge_netmask: "{{ lookup_subnet | ansible.utils.ipaddr('prefix')}}"
-    host_index: "{{ hostvars[inventory_hostname]['index_key'] }}"
+    index_key: "{{ hostvars[inventory_hostname]['index_key'] }}"
 
 - name: Set ovn config
   when: ovn is defined
