@@ -1,0 +1,56 @@
+# ipv4_address: 40.78.24.91
+# ipv4_address_private: 10.0.0.4
+# hostname: micro-vm-2
+# bridge_ipv4_address: 172.25.0.3
+# ipv4_address: 40.78.24.91
+# ipv4_address_private: 10.0.0.4
+# hostname: micro-vm-2
+# bridge_ipv4_address: 172.25.0.3
+network:
+  version: 2
+  renderer: NetworkManager
+  ethernets:
+    eth0:
+      addresses: ['10.0.0.4/16']
+      nameservers:
+        addresses: ["8.8.8.8", "8.8.4.4"]
+      routes:
+        - to: default
+          via: 10.0.0.1
+  # provider specific
+  vlans:
+    vlan0:
+      accept-ra: no
+      id: 15
+      link: eth0
+  bridges:
+    mcbr_bridge:
+      #dhcp4: true
+      #dhcp6: false
+      interfaces: [tunnel_02, tunnel_12, vlan0]
+      addresses: ['172.25.0.3/16']
+      macaddress: "52:54:00:3b:36:15"
+      #mtu: 9000
+  tunnels:
+    tunnel_02:
+      mode: vxlan
+      id: '02'
+      link: 'eth0'
+      remote: "10.0.0.5"
+      local: "10.0.0.4"
+      port: 4789
+      mtu: 9000
+      accept-ra: no
+      neigh-suppress: true
+      #mac-learning: false
+    tunnel_12:
+      mode: vxlan
+      id: '12'
+      link: 'eth0'
+      remote: "10.0.0.6"
+      local: "10.0.0.4"
+      port: 4789
+      mtu: 9000
+      accept-ra: no
+      neigh-suppress: true
+      #mac-learning: false

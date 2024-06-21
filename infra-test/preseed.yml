@@ -1,24 +1,30 @@
-lookup_subnet: 172.25.0.3/16
+lookup_subnet: 172.25.0.1/16
 lookup_interface: mcbr_bridge
 systems:
-  - name: homelabnode1
+  - name: micro-vm-0
     ovn_uplink_interface: mcbr_bridge
     storage:
       local:
-        path: /dev/mmcblk0
-        wipe: True
-  - name: orangepi4-lts-1
-    ovn_uplink_interface: mcbr_bridge
-    storage:
-      local:
-        path: /dev/sda
-        wipe: True
-  - name: orangepi4-lts-0
-    ovn_uplink_interface: mcbr_bridge
-    storage:
-      local:
-        path: /dev/mmcblk0
+        path: /dev/sdd
         wipe: True
       ceph:
-        - path: /dev/sda
+        - path: /dev/sdc
+          wipe: True
+  - name: micro-vm-1
+    ovn_uplink_interface: mcbr_bridge
+    storage:
+      local:
+        path: /dev/sdd
+        wipe: True
+      ceph:
+        - path: /dev/sdc
+          wipe: True
+  - name: micro-vm-2
+    ovn_uplink_interface: mcbr_bridge
+    storage:
+      local:
+        path: /dev/sdd
+        wipe: True
+      ceph:
+        - path: /dev/sdc
           wipe: True

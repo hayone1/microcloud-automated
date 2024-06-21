@@ -4,8 +4,10 @@ ansible_user: microcloud
 ansible_ssh_private_key_file: ~/.ssh/id_rsa
 ansible_ssh_public_key_file: ~/.ssh/id_rsa.pub
 
+# lookup_subnet: 10.0.1.1/24
+
 prefix: micro
-use_preseed: false
+use_preseed: true
 tag:
   System:       "microcloud"
   Creator:      "terraform"

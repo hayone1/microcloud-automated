@@ -21,8 +21,9 @@ groups:
 # The below details will be used to create a virtual multicast network bridge and tunnel will be created to 
 # allow microcloud locate other servers with mDNS
 
-# don't use 10.0.0.0/16 as it is reserved/hardcoded for some providers
-lookup_subnet: 192.168.0.1/20 # bridge start ip subnet (preferably don't start with .0)
+# don't use the same or overlapping private subnet as the main interface's ip.
+# eg. 10.0.0.0/16 as the default private subnet for some providers
+lookup_subnet: 172.25.0.1/16 # bridge start ip subnet (preferably don't start with .0)
 # 172.25.0.1/16
 lookup_bridge: mcbr_bridge # only alphanumbric and underscore
 # lookup_bridge_mac_prefix: '52:54:00'
@@ -49,6 +50,7 @@ wipe_ceph: true
 
 extra_apt_binaries:
   - vim
+  - dosfstools
   # - tcpflow
   # - make
   # - jq

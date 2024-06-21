@@ -9,6 +9,7 @@
 |Ubuntu-24-04-lts|
 
 ### Disk partitioning
+- Whatever disk you want to use should be unmounted before using it for microcloud.command.
 - you can partition your disks using parted and mkfs
 eg to partition disk into 2 parts:
 ``` shell

@@ -10,6 +10,11 @@
     name: microceph
     channel: "{{microceph_channel | default('reef/stable') }}"
     classic: false
+  register: install_status
+  retries: 3
+  delay: 3
+  until: install_status is succeeded
+  
 
 - name: Install Microovn snap
   # when: "'microovn' not in ansible_facts.packages"
@@ -17,6 +22,10 @@
     name: microovn
     channel: '{{microovn_channel}}'
     classic: no
+  register: install_status
+  retries: 3
+  delay: 3
+  until: install_status is succeeded
 
 - name: Install Microcloud snap
   # when: "'microcloud' not in ansible_facts.packages"
@@ -24,9 +33,29 @@
     name: microcloud
     channel: '{{microcloud_channel}}'
     classic: no
+  register: install_status
+  retries: 3
+  delay: 3
+  until: install_status is succeeded
 
 - name: Reboot
   ansible.builtin.reboot:
+  when: provider != "azure"
+
+- name: Check if secondary ip exists on {{ipv4_address_iface}}
+  shell: |
+    ip addr show {{ipv4_address_iface}} | grep "inet " | awk '{print $2}' | {
+        read -r ip1
+        read -r ip2
+        if [ -n "$ip2" ]; then
+            echo "$ip2"
+        fi
+    }
+  register: secondary_ip
+
+- name: Delete secondary ip
+  command: ip addr del {{ secondary_ip.stdout }} dev {{ipv4_address_iface}}
+  when: secondary_ip.stdout != ""
 
 - name: Ping test all-to-all network connectivity
   command: |-
@@ -40,25 +69,20 @@
   delay: 3
   until: ping_results.rc == 0
 
-- name: Test mDNS all-to-all connectivity
-  command: resolvectl query -4 {{peer_hostname}}.local
-  vars:
-    peer_hostname: "{{hostvars[item]['ansible_nodename']}}"
-  loop: "{{ groups[ansible_limit] }}"
-  register: mDNS_results
-  retries: 3
-  delay: 3
-  until: mDNS_results.rc == 0
-  when: resolved_stat.stat.exists
+# - name: Temporarily enable per-link MulticastDNS for {{ lookup_bridge }}
+#   command: resolvectl mdns {{ lookup_bridge }} yes
+#   when: resolved_stat.stat.exists
 
-- name: Show Next Steps
-  delegate_to: '{{ansible_play_hosts[0]}}'
-  run_once: true
-  debug:
-    msg: >-
-      use_preseed is set to false, you'll need
-      to run 'microcloud init'on any of the servers
-  when: use_preseed is defined and use_preseed != true
+# - name: Test mDNS all-to-all connectivity
+#   command: resolvectl query -4 {{peer_hostname}}.local
+#   vars:
+#     peer_hostname: "{{hostvars[item]['ansible_nodename']}}"
+#   loop: "{{ groups[ansible_limit] }}"
+#   register: mDNS_results
+#   retries: 3
+#   delay: 3
+#   until: mDNS_results.rc == 0
+#   when: resolved_stat.stat.exists
 
 - name: Copy preseed file to first host
   delegate_to: '{{ansible_play_hosts[0]}}'
@@ -84,16 +108,26 @@
     address: '{{ lookup_subnet | ansible.utils.next_nth_usable(index_key | int) }}'
   when: use_preseed is not defined or use_preseed == true
 - debug:
-    msg: '{{init_result.stdout_lines}}'
+    msg: '{{init_result}}'
   run_once: true
-  when: init_result is succeeded
+  when: init_result is defined
 
 - name: Show LXC Cluster
-  when: init_result.rc == 0
+  when: init_result is defined and init_result.changed == true
   delegate_to: '{{ansible_play_hosts[0]}}'
   run_once: true
   command: lxc cluster list
   register: lxc_cluster
 - debug:
     msg: "{{lxc_cluster.stdout_lines}}"
-  when: init_result.rc == 0
+  run_once: true
+  ignore_errors: true
+
+- name: Show Next Steps
+  delegate_to: '{{ansible_play_hosts[0]}}'
+  run_once: true
+  debug:
+    msg: >-
+      use_preseed is set to false, you'll need
+      to run 'microcloud init'on any of the servers
+  when: use_preseed is defined and use_preseed != true

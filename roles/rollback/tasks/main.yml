@@ -1,60 +1,28 @@
 ---
-# Add further tasks for the common role (applied to all servers) to this playbook...
 
-# - name: delete interface bridge {{ lookup_bridge }}
-#   command: ip link delete {{ lookup_bridge }}
-#   ignore_errors: true
+- name: Uninstall Microceph snap
+  # when: "'microceph' not in ansible_facts.packages"
+  snap:
+    name: microceph
+    state: absent
 
-# - name: delete lxc bridge {{ lookup_bridge }}
-#   command: lxc network delete {{ lookup_bridge }}
-#   ignore_errors: true
+- name: Uninstall Microovn snap
+  # when: "'microovn' not in ansible_facts.packages"
+  snap:
+    name: microovn
+    state: absent
 
-# - name: delete docker bridge {{ lookup_bridge }}
-#   command: docker network rm {{ lookup_bridge }}
-#   ignore_errors: true
-
-# - name: delete interface bridge {{ lookup_bridge }}
-#   command: ip link delete {{ lookup_bridge }}
-#   ignore_errors: true
-
-
-# - name: Delete vxlan tunnels (all-to-all)
-#   command: ip link delete {{ iface_name }}
-#   vars:
-#     iface_name: vxlan_{{ index_key }}_{{ hostvars[item]['index_key'] }}
-#   loop: "{{ groups[ansible_limit] }}"
-#   when: inventory_hostname != item
-#   ignore_errors: true
-
-# - name: Delete gretap tunnels (all-to-all)
-#   command: ip link delete {{ iface_name }}
-#   vars:
-#     iface_name: gre-{{ index_key }}{{ hostvars[item]['index_key'] }}
-#   loop: "{{ groups[ansible_limit] }}"
-#   when: inventory_hostname != item
-#   ignore_errors: true
-
-# - name: Delete lxc tunnels (all-to-all)
-#   command: ip link delete {{ iface_name }}
-#   vars:
-#     iface_name: l{{ index_key }}{{ hostvars[item]['index_key'] }}
-#   loop: "{{ groups[ansible_limit] }}"
-#   when: inventory_hostname != item
-#   ignore_errors: true
-
-
-# - name: Delete "{{ ovn_uplink_interface }}" interface
-#   command: ip link delete {{ ovn_uplink_interface }}
-#   ignore_errors: true
-
-# - name: Delete lxc "{{ ovn_uplink_interface }}" interface
-#   command: lxc network delete {{ ovn_uplink_interface }}
-#   ignore_errors: true
-
-# - name: Delete preseed file location
-#   run_once: true
-#   command: rm infra-{{ansible_limit}}/preseed.yml
-#   ignore_errors: true
+- name: Uninstall Microcloud snap
+  # when: "'microcloud' not in ansible_facts.packages"
+  snap:
+    name: microcloud
+    state: absent
+  
+- name: UnInstall LXD snap
+  # when: "'lxd' not in ansible_facts.packages"
+  snap:
+    name: lxd
+    state: absent
 
 - name: Unconditionally reboot the machine with all defaults
   ansible.builtin.reboot:

@@ -8,11 +8,12 @@ ansible_user: orangepi
 ansible_ssh_private_key_file: ~/.ssh/id_rsa
 ansible_ssh_public_key_file: ~/.ssh/id_rsa.pub
 
-lookup_subnet: 192.168.0.10/24 # override
+lookup_subnet: 172.25.0.1/16 # override
 
 # general prefix that will be used to anem things
 prefix: micro
 use_preseed: false
+provider: ""
 
 # supported cloud providers are
 # |digital_ocean|self_hosted|azure|
@@ -20,28 +21,33 @@ use_preseed: false
 infra_providers:
   self_hosted:
     hosts:  # only host field will be used if specified
-      192.168.0.146: # public IP
-        ceph_volume_path: /dev/sda1
-        hostname: orangepi4-lts
+      192.168.0.145: # public IP
+        # provider: baremetal
+        # ceph_volume_path: /dev/sda1
+        hostname: orangepi4-lts-1
         index_key: 0
-        ipv4_address: 192.168.0.146
+        ipv4_address: 192.168.0.145
         ipv4_address_iface: eth0
-        ipv4_address_private: 192.168.0.146
+        ipv4_address_private: 192.168.0.145
         ipv4_address_private_iface: eth0
-        local_volume_path: /dev/sda2
-      192.168.0.148:
-        ceph_volume_path: /dev/mmcblk0p1
-        hostname: orangepi4-lts
+        local_volume_path: /dev/sda
+      192.168.0.147:
+        # provider: baremetal
+        ceph_volume_path: /dev/sda
+        hostname: orangepi4-lts-0
         index_key: 1
-        ipv4_address: 192.168.0.148
+        ipv4_address: 192.168.0.147
         ipv4_address_iface: eth0
-        ipv4_address_private: 192.168.0.148
+        ipv4_address_private: 192.168.0.147
         ipv4_address_private_iface: eth0
-        local_volume_path: /dev/mmcblk0p2
-      # 192.168.0.144:
-      #   hostname: orangepi800
-      #   index_key: 2
-      #   ipv4_address: 192.168.0.144 # [mandatory]
-      #   ipv4_address_iface: eno0
-      #   ipv4_address_private: 192.168.0.144 # [mandatory]
-      #   ipv4_address_private_iface: eno0
+        local_volume_path: /dev/mmcblk0
+      192.168.0.144:
+        # provider: baremetal
+        # ceph_volume_path: /dev/mmcblk0p1
+        hostname: homelabnode1
+        index_key: 2
+        ipv4_address: 192.168.0.144 # [mandatory]
+        ipv4_address_iface: eno0
+        ipv4_address_private: 192.168.0.144 # [mandatory]
+        ipv4_address_private_iface: eno0
+        local_volume_path: /dev/mmcblk0

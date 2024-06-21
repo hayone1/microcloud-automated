@@ -1,6 +1,7 @@
 # ipv4_address: {{ ipv4_address }}
+# ipv4_address_private: {{ ipv4_address_private }}
 # hostname: {{ ansible_nodename }}
-# bridge_ipv4_cidr: {{ ip_cidr }}
+# bridge_ipv4_address: {{ local_lookup_ip }}
 network:
     version: 2
     renderer: NetworkManager
@@ -12,6 +13,7 @@ network:
             routes:
                 - to: default
                   via: {{ default_gateway.stdout_lines[0] }}
+    # provider specific
     vlans:
         {{ vlan_name }}:
             accept-ra: no
@@ -22,17 +24,20 @@ network:
             #dhcp4: true
             #dhcp6: false
             interfaces: [ '{{ tunnel_name}}' ]
-            addresses: [ '{{ lookup_ip }}/{{ bridge_prefix }}' ]
-            # macaddress: {{ default_macaddress.stdout }}
+            addresses: [ '{{ local_lookup_ip }}/{{ local_bridge_prefix }}' ]
+            macaddress: "{{ '52:54:00' | community.general.random_mac(seed=inventory_hostname) }}"
             nameservers:
                 addresses: ["8.8.8.8", "8.8.4.4"]
+            #mtu: 1500
     tunnels:
         {{ tunnel_name}}:
             mode: vxlan
             id: '{{tunnel_id}}'
             link: '{{ ipv4_address_private_iface }}'
-            remote: "{{ hostvars[item]['ipv4_address_private'] }}"
+            remote: "{{ remote_default_ip }}"
             local: "{{ ipv4_address_private }}"
             port: 4789
-            # mac-learning: false
             mtu: 9000
+            #accept-ra: no
+            neigh-suppress: true
+            #mac-learning: false

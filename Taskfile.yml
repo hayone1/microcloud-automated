@@ -363,6 +363,7 @@ tasks:
       GROUP: '{{index .MATCH 0}}'
     cmds:
       - task infra-update-{{.GROUP}} -- --auto-approve
+      - task deploy-cache-{{.GROUP}}
       - task deploy-init-{{.GROUP}}
       - task deploy-install-{{.GROUP}}
 ############# Deploy All #############

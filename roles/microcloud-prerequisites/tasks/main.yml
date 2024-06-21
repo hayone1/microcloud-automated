@@ -9,10 +9,6 @@
     path: /etc/systemd/resolved.conf
   register: resolved_stat
 
-###### Uncomment this
-# - name: Update package lists
-#   apt: update_cache=yes
-
 - name: Install snapd package
   when: "'snapd' not in ansible_facts.packages"
   apt:
@@ -131,21 +127,6 @@
 #     name: iptables-persistent
 #     state: present
 
-- name: Check if secondary ip exists on {{ipv4_address_iface}}
-  shell: |
-    ip addr show {{ipv4_address_iface}} | grep "inet " | awk '{print $2}' | {
-        read -r ip1
-        read -r ip2
-        if [ -n "$ip2" ]; then
-            echo "$ip2"
-        fi
-    }
-  register: secondary_ip
-
-- name: Delete secondary ip
-  command: ip addr del {{ secondary_ip.stdout }} dev {{ipv4_address_iface}}
-  when: secondary_ip.stdout != ""
-
 - name: Get private iface macaddress
   shell:
     cmd: ip addr show {{ ipv4_address_private_iface }} | grep link/ether | awk '{print $2}'
@@ -161,17 +142,28 @@
     cmd: ip addr show {{ ipv4_address_private_iface }} | grep 'inet ' | awk '{print $2}'
   register: default_ip_cidr
 
+- name: Get lookup IP
+  set_fact:
+    local_lookup_ip: '{{ lookup_subnet | ansible.utils.next_nth_usable(index_key | int) }}'
+
+# users should set their provier to "custom" if
+# it isn't officially supported by this project.
+# or to the provder that best fits their env.
 - name: Create bridge and tunnel temp configs
   local_action:
     module: ansible.builtin.template
-    src: templates/netplan.j2
+    src: templates/netplan-{{provider}}.j2
     dest: '{{netplan_file}}.temp{{tunnel_id}}'
   vars:
-    bridge_prefix: "{{ lookup_subnet | ansible.utils.ipaddr('prefix')}}"
-    lookup_ip: '{{ lookup_subnet | ansible.utils.next_nth_usable(index_key | int) }}'
+    local_bridge_prefix: "{{ lookup_subnet | ansible.utils.ipaddr('prefix')}}"
+    # local_lookup_ip: '{{ lookup_subnet | ansible.utils.next_nth_usable(index_key | int) }}'
+    #######
+    remote_index_key: "{{ hostvars[item]['index_key'] }}"
+    remote_default_ip: "{{ hostvars[item]['ipv4_address_private'] }}"
+    remote_lookup_ip: "{{ hostvars[item]['local_lookup_ip'] }}"
     # ip_cidr: '{{ lookup_ip }}/{{ bridge_prefix }}'
     #######
-    tunnel_iface_id: "{{ index_key }}{{ hostvars[item]['index_key'] }}"
+    tunnel_iface_id: "{{ index_key }}{{remote_index_key}}"
     tunnel_id: '{{tunnel_iface_id | sort | join()}}'
     tunnel_name: tunnel_{{tunnel_id}}
     #######
@@ -190,7 +182,15 @@
       &&
       yq -i '.network.bridges.{{lookup_bridge}}.interfaces =
       (.network.tunnels | keys)' {{ netplan_file }}
-      &&
+    chdir: infra-{{ansible_limit}}
+  vars:
+    netplan_file: '{{ ansible_nodename }}-{{ index_key }}-netplan.yml'
+  become: false
+
+- name: Conditionally Add vlan to bridge
+  local_action:
+    module: ansible.builtin.shell
+    cmd: >-
       yq -i '.network.bridges.{{lookup_bridge}}.interfaces =
       (.network.tunnels | keys) + "{{ vlan_name }}"' {{ netplan_file }}
     # creates: '{{ ansible_nodename }}-netplan.yml'
@@ -198,6 +198,7 @@
   vars:
     netplan_file: '{{ ansible_nodename }}-{{ index_key }}-netplan.yml'
     vlan_name: "{{vlan | default('vlan0')}}"
+  when: provider == "azure"
   become: false
 
 - name: Cleanup bridge and tunnel temp configs
@@ -228,10 +229,10 @@
     netplan_file: 'infra-{{ansible_limit}}/{{ ansible_nodename }}-{{ index_key }}-netplan.yml'
     dest_netplan_file: /etc/netplan/10{{index_key}}-microcloud.yaml
 
-# - name: Apply netplan config
-#   shell: netplan generate && netplan apply
-#   vars:
-#     dest_netplan_file: /etc/netplan/10{{index_key}}-microcloud.yaml
+- name: Apply netplan config
+  shell: netplan generate && netplan apply
+  vars:
+    dest_netplan_file: /etc/netplan/10{{index_key}}-microcloud.yaml
 
 # - name: Configure ufw allow for bridge interface {{ lookup_bridge }}
 #   when: "'ufw' in ansible_facts.packages"
@@ -241,14 +242,14 @@
 #     ufw route allow out on {{ lookup_bridge }}
 
 
-- name: Enable global MulticastDNS in resolved.conf
-  lineinfile:
-    path: /etc/systemd/resolved.conf
-    regexp: '^#?MulticastDNS='  # Matches commented or uncommented line
-    line: MulticastDNS=yes
-    state: present  # Ensure line exists with desired value
-  # notify: restart_resolved  # Trigger restart after modification
-  when: resolved_stat.stat.exists
+# - name: Enable global MulticastDNS(mdns) in resolved.conf
+#   lineinfile:
+#     path: /etc/systemd/resolved.conf
+#     regexp: '^#?MulticastDNS='  # Matches commented or uncommented line
+#     line: MulticastDNS=yes
+#     state: present  # Ensure line exists with desired value
+#   # notify: restart_resolved  # Trigger restart after modification
+#   when: resolved_stat.stat.exists
   
 # - name: Enable IPv4 forwarding
 #   sysctl:
@@ -280,16 +281,31 @@
 #   when: vars["ansible_" + ovn_uplink_interface] is not defined
 
 - name: Unmount ceph volume
-  when: ceph_volume_path != None
+  when: ceph_volume_path is defined and ceph_volume_path != None
   mount: 
     path: '{{ ceph_volume_path }}'
     state: unmounted
 
+
+- name: Create a xfs filesystem on ceph_volume_path
+  when: ceph_volume_path is defined and ceph_volume_path != None
+  filesystem:
+    fstype: xfs
+    dev: '{{ ceph_volume_path }}'
+  ignore_errors: true
+
 - name: Unmount local volume
-  when: local_volume_path != None
+  when: local_volume_path is defined and local_volume_path != None
   mount: 
     path: '{{ local_volume_path }}'
     state: unmounted
+
+- name: Create a xfs filesystem on local_volume_path
+  when: local_volume_path is defined and local_volume_path != None
+  filesystem:
+    fstype: xfs
+    dev: '{{ local_volume_path }}'
+  ignore_errors: true
 
 - name: Set preseed file location
   run_once: true
@@ -363,7 +379,3 @@
       del(.. | select(tag == "!!map" and length == 0)))'
     {{preseed_file.msg}}
   become: false
-
-
-
-    
