@@ -95,6 +95,7 @@ A Valid Output would produce something like the below:
 | https://luppeng.wordpress.com/2023/01/10/make-lxd-containers-visible-on-host-network/ |
 | https://netplan.readthedocs.io/en/stable/examples/#how-to-configure-network-bridges |
 | https://github.com/canonical/microcloud/issues/256 |
+| https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/8/html/configuring_and_managing_networking/assembly_using-a-vxlan-to-create-a-virtual-layer-2-domain-for-vms_configuring-and-managing-networking#proc_proc_configuring-virtual-machines-to-use-vxlan_assembly_using-a-vxlan-to-create-a-virtual-layer-2-domain-for-vms | 
 
 ### Important
 Do not edit the root .gitignore file directly. Any pull requests with a change to the .gitignore file will be rejected.

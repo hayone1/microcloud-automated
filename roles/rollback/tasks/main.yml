@@ -24,5 +24,12 @@
     name: lxd
     state: absent
 
+- name: Save netplan in remote host
+  file:
+    path: '{{ dest_netplan_file }}'
+    state: absent
+  vars:
+    dest_netplan_file: /etc/netplan/10{{index_key}}-microcloud.yaml
+
 - name: Unconditionally reboot the machine with all defaults
   ansible.builtin.reboot:

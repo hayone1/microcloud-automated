@@ -1,7 +1,7 @@
-lookup_subnet: 172.25.0.1/16
+lookup_subnet: 172.25.0.3/16
 lookup_interface: mcbr_bridge
 systems:
-  - name: micro-vm-0
+  - name: micro-vm-2
     ovn_uplink_interface: mcbr_bridge
     storage:
       local:
@@ -14,12 +14,12 @@ systems:
     ovn_uplink_interface: mcbr_bridge
     storage:
       local:
-        path: /dev/sdd
+        path: /dev/sdc
         wipe: True
       ceph:
-        - path: /dev/sdc
+        - path: /dev/sdd
           wipe: True
-  - name: micro-vm-2
+  - name: micro-vm-0
     ovn_uplink_interface: mcbr_bridge
     storage:
       local:

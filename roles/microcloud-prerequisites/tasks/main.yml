@@ -115,18 +115,6 @@
     channel: "{{lxd_channel | default('reef/stable') }}"
     classic: false  # Avoid classic confinement (recommended)
 
-# - name: Install iptables
-#   when: "'iptables' not in ansible_facts.packages"
-#   apt:
-#     name: iptables
-#     state: present
-
-# - name: Install iptables-persistent
-#   when: "'iptables-persistent' not in ansible_facts.packages"
-#   apt:
-#     name: iptables-persistent
-#     state: present
-
 - name: Get private iface macaddress
   shell:
     cmd: ip addr show {{ ipv4_address_private_iface }} | grep link/ether | awk '{print $2}'
@@ -216,9 +204,10 @@
 #     cmd: yq -o=json $(ls /etc/netplan | tail -n 1) | tr '\n' ' '
 #   register: default_netplan
 
-- name: Set mode for default netplan
+- name: Set chmode for default netplan file
   shell:
     cmd: chmod 600 "/etc/netplan/$(ls /etc/netplan | tail -n 1)"
+  ignore_errors: true
     
 - name: Save netplan in remote host
   copy:
@@ -242,26 +231,26 @@
 #     ufw route allow out on {{ lookup_bridge }}
 
 
-# - name: Enable global MulticastDNS(mdns) in resolved.conf
-#   lineinfile:
-#     path: /etc/systemd/resolved.conf
-#     regexp: '^#?MulticastDNS='  # Matches commented or uncommented line
-#     line: MulticastDNS=yes
-#     state: present  # Ensure line exists with desired value
-#   # notify: restart_resolved  # Trigger restart after modification
-#   when: resolved_stat.stat.exists
+- name: Enable global MulticastDNS(mdns) in resolved.conf
+  lineinfile:
+    path: /etc/systemd/resolved.conf
+    regexp: '^#?MulticastDNS='  # Matches commented or uncommented line
+    line: MulticastDNS=yes
+    state: present  # Ensure line exists with desired value
+  # notify: restart_resolved  # Trigger restart after modification
+  when: resolved_stat.stat.exists
   
-# - name: Enable IPv4 forwarding
-#   sysctl:
-#     name: net.ipv4.ip_forward
-#     value: '1'
-#     state: present
+- name: Enable IPv4 forwarding
+  sysctl:
+    name: net.ipv4.ip_forward
+    value: '1'
+    state: present
 
-# - name: Persist IPv4 forwarding setting
-#   lineinfile:
-#     path: /etc/sysctl.conf
-#     regexp: '^net.ipv4.ip_forward'
-#     line: 'net.ipv4.ip_forward=1'
+- name: Persist IPv4 forwarding setting
+  lineinfile:
+    path: /etc/sysctl.conf
+    regexp: '^net.ipv4.ip_forward'
+    line: 'net.ipv4.ip_forward=1'
 
 # # creating new file to avoid cloud init override
 # - name: Set netplan renderer to NetworkManager

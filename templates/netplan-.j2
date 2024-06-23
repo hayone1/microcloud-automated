@@ -28,7 +28,7 @@ network:
             macaddress: "{{ '52:54:00' | community.general.random_mac(seed=inventory_hostname) }}"
             nameservers:
                 addresses: ["8.8.8.8", "8.8.4.4"]
-            #mtu: 1500
+            mtu: 1360
     tunnels:
         {{ tunnel_name}}:
             mode: vxlan
@@ -37,7 +37,7 @@ network:
             remote: "{{ remote_default_ip }}"
             local: "{{ ipv4_address_private }}"
             port: 4789
-            mtu: 9000
+            mtu: 1360
             #accept-ra: no
             neigh-suppress: true
             #mac-learning: false
