@@ -22,14 +22,14 @@ tag:
 # you can also put arbitrary values
 infra_providers:
   digital_ocean:
-    quantity: 1
+    quantity: 2
     # "nano" "micro" "small" "medium" "large" "xlarge" "2xlarge" "custom"
-    size: nano
+    size: micro
     region: "nyc3"
     image: 
       sku: ubuntu-24-04-x64
     custom_sizes: ['s-1vcpu-512mb-10gb'] # region sensitive 
-    local_volume_sizes: [3]
-    ceph_volume_sizes: [3]
+    # local_volume_sizes: [3]
+    # ceph_volume_sizes: [3]
     tag:
       prov: "do"

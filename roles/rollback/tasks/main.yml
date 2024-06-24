@@ -24,10 +24,15 @@
     name: lxd
     state: absent
 
-- name: Save netplan in remote host
+- name: Remove netplan in remote host
   file:
     path: '{{ dest_netplan_file }}'
     state: absent
+  vars:
+    dest_netplan_file: /etc/netplan/10{{index_key}}-microcloud.yaml
+
+- name: Apply netplan config
+  shell: netplan generate && netplan apply
   vars:
     dest_netplan_file: /etc/netplan/10{{index_key}}-microcloud.yaml
 

@@ -230,7 +230,6 @@
 #     ufw route allow in on {{ lookup_bridge }}
 #     ufw route allow out on {{ lookup_bridge }}
 
-
 - name: Enable global MulticastDNS(mdns) in resolved.conf
   lineinfile:
     path: /etc/systemd/resolved.conf
