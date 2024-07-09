@@ -1,0 +1,21 @@
+#!/bin/bash
+
+# infra-{{ansible_limit}}/{{iface_id}}_tunnel_setup_{{var_tunnel_type}}.sh
+
+# when run on startup
+# don't run for other interfaces except main private interface
+if [[ $PWD == *"dispatcher.d"* ]]; then
+    if [[ "$1" != "{{ipv4_address_private_iface}}" ]] ||
+        [[ "$2" != "up" ]];
+        then exit 0 
+    fi
+fi
+
+ip link add {{tunnel_name}} type vxlan \
+    id {{tunnel_id}} \
+    remote {{ hostvars[item]['ipv4_address_private'] }} \
+    local {{ ipv4_address_private }} \
+    ttl 255 dstport 4789
+brctl addif {{ lookup_bridge }} {{tunnel_name}}
+ip link set dev {{tunnel_name}} multicast on
+ip link set dev {{tunnel_name}} up

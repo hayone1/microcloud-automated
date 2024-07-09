@@ -15,13 +15,6 @@
     name: snapd
     state: present
 
-# - name: Set snapd version
-#   # when: "'snapd' not in ansible_facts.packages"
-#   snap:
-#     name: snapd
-#     state: present
-#     channel: '{{snapd_channel}}'
-  
 - name: Set snapd version using shell
   shell: |-
       snapd_channel=$(snap list snapd | grep snapd | awk '{print $4}')
@@ -84,6 +77,37 @@
     name: lxd-client
     state: absent
 
+- name: Install zfs-dkms
+  when: >-
+    var_skip_zfs_dkms_install == false and
+    'zfs-dkms' not in ansible_facts.packages
+  apt:
+    name: zfs-dkms
+    state: present
+  # ignore_errors: true
+- debug:
+    msg: |-
+      Please Note that you may need to run the below commands to get zfs running
+      $ apt install linux-headers-$(uname -r) # download manually if not available on apt
+      $ dpkg-reconfigure zfs-dkms
+      $ modprobe zfs
+
+- name: Install xfsprogs
+  when: "'xfsprogs' not in ansible_facts.packages"
+  apt:
+    name: xfsprogs
+    state: present
+
+- name: Install ngrok
+  when: "'ngrok' not in ansible_facts.packages"
+  shell: |-
+    curl -s https://ngrok-agent.s3.amazonaws.com/ngrok.asc \
+      | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null \
+      && echo "deb https://ngrok-agent.s3.amazonaws.com buster main" \
+      | sudo tee /etc/apt/sources.list.d/ngrok.list \
+      && sudo apt update \
+      && sudo apt install ngrok
+
 - name: Install iputils-ping
   when: "'iputils-ping' not in ansible_facts.packages"
   apt:
@@ -115,6 +139,13 @@
     channel: "{{lxd_channel | default('reef/stable') }}"
     classic: false  # Avoid classic confinement (recommended)
 
+- name: Install ngrok snap
+  # when: "'lxd' not in ansible_facts.packages"
+  snap:
+    name: ngrok
+    channel: "{{ngrok_channel | default('v3/stable') }}"
+############End of Install###########
+
 - name: Get private iface macaddress
   shell:
     cmd: ip addr show {{ ipv4_address_private_iface }} | grep link/ether | awk '{print $2}'
@@ -122,7 +153,7 @@
 
 - name: Get default gateway
   shell:
-    cmd: ip route | grep default | awk '{print $3}'
+    cmd: ip route | grep 'default via' | awk '{print $3}' | head -n 1
   register: default_gateway
 
 - name: Get private iface ip_cidr
@@ -140,7 +171,7 @@
 - name: Create bridge and tunnel temp configs
   local_action:
     module: ansible.builtin.template
-    src: templates/netplan-{{provider}}.j2
+    src: templates/netplan-{{var_provider}}.j2
     dest: '{{netplan_file}}.temp{{tunnel_id}}'
   vars:
     local_bridge_prefix: "{{ lookup_subnet | ansible.utils.ipaddr('prefix')}}"
@@ -164,12 +195,16 @@
 - name: Merge bridge and tunnel configs
   local_action:
     module: ansible.builtin.shell
+    # merges the temp files
+    # also checks if the merged file has defined a bridge and attempts
+    # to set the interfaces of the bridge to the tunnels
     cmd: >-
       yq eval-all '. as $item ireduce ({}; . * $item)'
       *-{{ index_key }}-netplan.yml.temp* > {{ netplan_file }}
       &&
-      yq -i '.network.bridges.{{lookup_bridge}}.interfaces =
-      (.network.tunnels | keys)' {{ netplan_file }}
+      yq -i '(. | select(.network.bridges |
+          has("{{lookup_bridge}}")).network.bridges.{{lookup_bridge}}.interfaces =
+        (.network.tunnels | keys))' {{ netplan_file }}
     chdir: infra-{{ansible_limit}}
   vars:
     netplan_file: '{{ ansible_nodename }}-{{ index_key }}-netplan.yml'
@@ -186,10 +221,10 @@
   vars:
     netplan_file: '{{ ansible_nodename }}-{{ index_key }}-netplan.yml'
     vlan_name: "{{vlan | default('vlan0')}}"
-  when: provider == "azure"
+  when: var_provider == "azure"
   become: false
 
-- name: Cleanup bridge and tunnel temp configs
+- name: Cleanup bridge and tunnel temp files
   run_once: true
   local_action:
     module: ansible.builtin.shell
@@ -199,16 +234,43 @@
     netplan_file: '{{ ansible_nodename }}-netplan.yml'
   become: false
 
-# - name: Get default netplan
-#   shell:
-#     cmd: yq -o=json $(ls /etc/netplan | tail -n 1) | tr '\n' ' '
-#   register: default_netplan
-
-- name: Set chmode for default netplan file
+- name: Get default(earliest) netplan file
   shell:
-    cmd: chmod 600 "/etc/netplan/$(ls /etc/netplan | tail -n 1)"
-  ignore_errors: true
-    
+    cmd: >-
+      find . -type f -print0 | xargs -0 stat -c '%Y %n' |
+        sort -n | head -n 1 | awk '{print $2}'
+    chdir: /etc/netplan
+  register: default_netplan_file
+
+- name: Check if default netplan contains private interface
+  when: default_netplan_file.rc == 0
+  command: 
+    cmd: >-
+      yq '.network.ethernets | has("{{ipv4_address_private_iface}}")'
+        {{default_netplan_file.stdout}}
+    chdir: /etc/netplan
+  register: use_default_netplan
+# - debug:
+#     msg: '{{ use_default_netplan.stdout }}'
+
+- name: Get default netplan as json
+  when: use_default_netplan.stdout == 'true'
+  shell:
+    cmd: yq -o=json {{default_netplan_file.stdout}} | tr '\n' ' '
+    chdir: /etc/netplan
+  register: default_netplan
+
+- name: Merge ethernets config to bridge and tunnel config
+  when: use_default_netplan.stdout == 'true'
+  local_action:
+    module: ansible.builtin.command
+    cmd: |-
+      yq -i '. * {{default_netplan.stdout}}' {{ netplan_file }}
+    chdir: infra-{{ansible_limit}}
+  vars:
+    netplan_file: '{{ ansible_nodename }}-{{ index_key }}-netplan.yml'
+  become: false
+###############use netplan###############
 - name: Save netplan in remote host
   copy:
     src: '{{ netplan_file }}'
@@ -217,18 +279,70 @@
   vars:
     netplan_file: 'infra-{{ansible_limit}}/{{ ansible_nodename }}-{{ index_key }}-netplan.yml'
     dest_netplan_file: /etc/netplan/10{{index_key}}-microcloud.yaml
+  when: var_use_netplan == true
+  
+- name: Set chmod 600 for default netplan file
+  file:
+    path: /etc/netplan/{{default_netplan_file.stdout}}
+    mode: '0600'
+  ignore_errors: true
+  when: var_use_netplan == true
 
 - name: Apply netplan config
   shell: netplan generate && netplan apply
   vars:
     dest_netplan_file: /etc/netplan/10{{index_key}}-microcloud.yaml
+  when: var_use_netplan == true
+###############use netplan###############
 
-# - name: Configure ufw allow for bridge interface {{ lookup_bridge }}
-#   when: "'ufw' in ansible_facts.packages"
-#   shell: |
-#     ufw allow in on {{ lookup_bridge }}
-#     ufw route allow in on {{ lookup_bridge }}
-#     ufw route allow out on {{ lookup_bridge }}
+###############use commands###############
+- name: Create tunnels script (all-to-all)
+  local_action:
+    module: ansible.builtin.template
+    src: templates/tunnel_setup_{{var_tunnel_type}}.j2
+    dest: 'infra-{{ansible_limit}}/{{inventory_hostname}}_{{iface_id}}_tunnel_setup_{{var_tunnel_type}}.sh'
+  vars:
+    iface_id: "{{ index_key }}{{ hostvars[item]['index_key'] }}"
+    peer_hostname: "{{hostvars[item]['ansible_nodename']}}"
+    tunnel_id: '{{iface_id | sort | join()}}'
+    tunnel_name: tunnel_{{tunnel_id}}
+  when: >-
+    var_use_netplan == false and
+    inventory_hostname != item
+  loop: "{{ groups[ansible_limit] }}"
+  become: false
+  register: create_tunnel_script
+
+- name: Execute tunnels script in host
+  script: 'infra-{{ansible_limit}}/{{inventory_hostname}}_{{iface_id}}_tunnel_setup_{{var_tunnel_type}}.sh'
+  vars:
+    iface_id: "{{ index_key }}{{ hostvars[item]['index_key'] }}"
+  loop: "{{ groups[ansible_limit] }}"
+  loop_control:
+    index_var: idx
+  when: >-
+    var_use_netplan == false and
+    create_tunnel_script.results[idx] is succeeded and
+    inventory_hostname != item
+
+- name: Save tunnels script in host for startup execution
+  copy:
+    src: 'infra-{{ansible_limit}}/{{inventory_hostname}}_{{iface_id}}_tunnel_setup_{{var_tunnel_type}}.sh'
+    dest: /etc/NetworkManager/dispatcher.d/{{inventory_hostname}}_{{iface_id}}_tunnel_setup
+    owner: root
+    group: root
+    # mode: u=rwX,g=rX,o=rX
+    mode: '0755'
+  vars:
+    iface_id: "{{ index_key }}{{ hostvars[item]['index_key'] }}"
+  loop: "{{ groups[ansible_limit] }}"
+  loop_control:
+    index_var: idx
+  when: >-
+    var_use_netplan == false and
+    create_tunnel_script.results[idx] is succeeded and
+    inventory_hostname != item
+###############use commands###############
 
 - name: Enable global MulticastDNS(mdns) in resolved.conf
   lineinfile:
@@ -236,7 +350,6 @@
     regexp: '^#?MulticastDNS='  # Matches commented or uncommented line
     line: MulticastDNS=yes
     state: present  # Ensure line exists with desired value
-  # notify: restart_resolved  # Trigger restart after modification
   when: resolved_stat.stat.exists
   
 - name: Enable IPv4 forwarding
@@ -244,42 +357,62 @@
     name: net.ipv4.ip_forward
     value: '1'
     state: present
+    reload: true
 
-- name: Persist IPv4 forwarding setting
-  lineinfile:
-    path: /etc/sysctl.conf
-    regexp: '^net.ipv4.ip_forward'
-    line: 'net.ipv4.ip_forward=1'
+- name: Add sysctl tunnel forwarding rules
+  sysctl: 
+    name: net.ipv4.conf.{{tunnel_name}}.forwarding
+    value: '1'
+    state: present
+    reload: true
+  vars:
+    # local_bridge_prefix: "{{ lookup_subnet | ansible.utils.ipaddr('prefix')}}"
+    remote_index_key: "{{ hostvars[item]['index_key'] }}"
+    #######
+    tunnel_iface_id: "{{ index_key }}{{remote_index_key}}"
+    tunnel_id: '{{tunnel_iface_id | sort | join()}}'
+    tunnel_name: tunnel_{{tunnel_id}}
+  when: inventory_hostname != item
+  loop: "{{ groups[ansible_limit] }}"
 
-# # creating new file to avoid cloud init override
-# - name: Set netplan renderer to NetworkManager
-#   copy:
-#     dest: /etc/netplan/50-NetworkManager.yaml
-#     content: |
-#       network:
-#         version: 2
-#         renderer: NetworkManager
-#     mode: '0600'
+- name: Add sysctl Disable rp filter config and reload sysctl
+  sysctl:
+    name: net.ipv4.conf.all.rp_filter
+    value: '0'
+    state: present
+    reload: true
 
-# - name: Create ovn_uplink_interface 
-#   command: >-
-#     lxc network create {{ ovn_uplink_interface }}
-#   args:
-#     creates: /sys/class/net/{{ ovn_uplink_interface }}
-#   when: vars["ansible_" + ovn_uplink_interface] is not defined
+- name: Configure ufw allow lookup_bridge interface 
+  when: >-
+    'ufw' in ansible_facts.packages and
+    vars["ansible_" + lookup_bridge] is defined
+  shell: |
+    ufw allow in on {{ lookup_bridge }}
+    ufw route allow in on {{ lookup_bridge }}
+    ufw route allow out on {{ lookup_bridge }}
+  ignore_errors: true
 
-- name: Unmount ceph volume
-  when: ceph_volume_path is defined and ceph_volume_path != None
+- name: Unmount ceph volumes
+  when: >-
+    ceph_volume_paths is defined and
+    item != None and
+    item != ""
   mount: 
-    path: '{{ ceph_volume_path }}'
+    path: '{{ item.path }}'
     state: unmounted
+  loop: '{{ ceph_volume_paths }}'
 
 
-- name: Create a xfs filesystem on ceph_volume_path
-  when: ceph_volume_path is defined and ceph_volume_path != None
+- name: Create a xfs filesystem on ceph_volume_paths
+  when: >-
+    ceph_volume_paths is defined and
+    item != None and
+    item != ""
   filesystem:
     fstype: xfs
-    dev: '{{ ceph_volume_path }}'
+    dev: '{{ item.path }}'
+    # force: true
+  loop: '{{ ceph_volume_paths }}'
   ignore_errors: true
 
 - name: Unmount local volume
@@ -288,11 +421,15 @@
     path: '{{ local_volume_path }}'
     state: unmounted
 
-- name: Create a xfs filesystem on local_volume_path
-  when: local_volume_path is defined and local_volume_path != None
+- name: Create an xfs filesystem on local_volume_path
+  when: >-
+    local_volume_path is defined and
+    local_volume_path != None and
+    local_volume_path != ""
   filesystem:
     fstype: xfs
     dev: '{{ local_volume_path }}'
+    # force: true
   ignore_errors: true
 
 - name: Set preseed file location
@@ -302,17 +439,34 @@
   register: preseed_file
 
 - name: add lookup_subnet and interface to preseed.yml using private ip subnet
-  delegate_to: localhost
   run_once: true
-  when: inventory_hostname == ansible_play_hosts[0]
-  shell: |-
-    touch {{preseed_file.msg}}
-    yq -i '.lookup_subnet = "{{ lookup_subnet | ansible.utils.next_nth_usable(index_key | int) }}/{{ bridge_netmask }}" |
-    .lookup_interface = "{{ lookup_bridge }}"' {{preseed_file.msg}}
+  when: >-
+    inventory_hostname == ansible_play_hosts[0] and
+    var_provider == 'azure'
+  local_action:
+    module: ansible.builtin.shell
+    cmd: |-
+      touch {{preseed_file.msg}}
+      yq -i '.lookup_subnet = "{{ lookup_subnet | ansible.utils.next_nth_usable(index_key | int) }}/{{ bridge_netmask }}" |
+      .lookup_interface = "{{ lookup_bridge }}"' {{preseed_file.msg}}
   become: false
   vars:
     bridge_netmask: "{{ lookup_subnet | ansible.utils.ipaddr('prefix')}}"
     index_key: "{{ hostvars[inventory_hostname]['index_key'] }}"
+
+- name: add lookup_subnet and interface to preseed.yml using private ip subnet
+  delegate_to: localhost
+  run_once: true
+  when: >-
+    inventory_hostname == ansible_play_hosts[0] and
+    var_provider != 'azure'
+  local_action:
+    module: ansible.builtin.shell
+    cmd: |-
+      touch {{preseed_file.msg}}
+      yq -i '.lookup_subnet = "{{ default_ip_cidr.stdout }}" |
+      .lookup_interface = "{{ ipv4_address_private_iface }}"' {{preseed_file.msg}}
+  become: false
 
 - name: Set ovn config
   when: ovn is defined
@@ -334,26 +488,24 @@
 #   register: current_remote
 
 - name: Set microcloud system config
-  delegate_to: localhost
   throttle: 1 # make it run serially per remote host
   # take the existing 'systems:' field if it exists and
   # remove any object with the same name as this current host
   # then add the details of the current host(essentally replacing)
-  command: >-
-    yq -i --prettyPrint 'del(.systems[] | select(.name == "{{ansible_nodename}}")) |
-    .systems += [{"name": "{{ansible_nodename}}",
-    "ovn_uplink_interface": "{{lookup_bridge}}",
-    "storage": env(host_storage)}]'
-    {{preseed_file.msg}}
+  local_action:
+    module: ansible.builtin.command
+    cmd: >-
+      yq -i --prettyPrint 'del(.systems[] | select(.name == "{{ansible_nodename}}")) |
+      .systems += [{"name": "{{ansible_nodename}}",
+      "ovn_uplink_interface": "{{ovn_uplink_interface}}",
+      "storage": env(host_storage)}]'
+      {{preseed_file.msg}}
   vars:
     storage:
       local:
         path: '{{local_volume_path | default("")}}'
         wipe: '{{wipe_local}}'
-      ceph:
-        - path: '{{ceph_volume_path | default("")}}'
-          wipe: '{{wipe_ceph}}'
-    # current_remote: '{{current_remote}}'
+      ceph: '{{ ceph_volume_paths }}'
   environment:
     host_storage: '{{storage}}'
   become: false

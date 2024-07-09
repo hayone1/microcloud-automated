@@ -23,13 +23,28 @@
   snap:
     name: lxd
     state: absent
+  
+- name: Wipe filesystems on ceph_volume_paths
+  when: >-
+    ceph_volume_paths is defined and
+    ceph_volume_paths != None and
+    ceph_volume_paths != ""
+  command: wipefs -a {{ ceph_volume_paths }}
+
+- name: Wipe local filesystems on local_volume_path
+  when: >-
+    local_volume_path is defined and
+    local_volume_path != None and
+    local_volume_path != ""
+  command: wipefs -a {{ local_volume_path }}
+
 
 - name: Remove netplan in remote host
-  file:
-    path: '{{ dest_netplan_file }}'
-    state: absent
-  vars:
-    dest_netplan_file: /etc/netplan/10{{index_key}}-microcloud.yaml
+  command:
+    cmd: rm -r *-microcloud.yaml*
+    chdir: /etc/netplan
+  # vars:
+  #   dest_netplan_file: /etc/netplan/10{{index_key}}-microcloud.yaml
 
 - name: Apply netplan config
   shell: netplan generate && netplan apply

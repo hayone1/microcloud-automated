@@ -1,0 +1,4 @@
+var_use_netplan: '{{use_netplan | default(true)}}'
+var_skip_zfs_dkms_install: '{{skip_zfs_dkms_install | default(true)}}'
+var_tunnel_type: '{{tunnel_type | default("ipip")}}' 
+var_provider: '{{provider | default("")}}' 

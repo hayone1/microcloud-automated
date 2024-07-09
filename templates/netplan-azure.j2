@@ -27,9 +27,12 @@ network:
             addresses: [ '{{ local_lookup_ip }}/{{ local_bridge_prefix }}' ]
             macaddress: "{{ '52:54:00' | community.general.random_mac(seed=inventory_hostname) }}"
             #mtu: 9000
+        {{ ovn_uplink_interface }}:
+            dhcp4: no
+            dhcp6: no
     tunnels:
         {{ tunnel_name}}:
-            mode: vxlan
+            mode: '{{tunnel_type | default("vxlan")}}'
             id: '{{tunnel_id}}'
             link: '{{ ipv4_address_private_iface }}'
             remote: "{{ remote_default_ip }}"

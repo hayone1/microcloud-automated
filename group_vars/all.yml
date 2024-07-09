@@ -1,42 +1,31 @@
 ---
-
 ######################################
-# Values that are only valid in all.yml
-# and you're probably interested in changing.
-######################################
-# ansible_ssh_host_key_checking: False
-# your environments, eg. dev, test, uat, sit, prod etc.
-groups:
-  # - dev
-  # - test
-  - qa
-
-######################################
-
-
-######################################
-# Values here can be the all.yml or in a group specific yml
+# These Values can be the all.yml or in a group specific yml
 # and should generally be fine with their defaults.
 ######################################
-# The below details will be used to create a virtual multicast network bridge and tunnel will be created to 
-# allow microcloud locate other servers with mDNS
+# The below details will be used to create a virtual multicast network tunnel
+# (and optionally a bridge) to allow microcloud locate other servers with mDNS reliably.
 
 # don't use the same or overlapping private subnet as the main interface's ip.
 # eg. 10.0.0.0/16 as the default private subnet for some providers
 lookup_subnet: 172.25.0.1/16 # bridge start ip subnet (preferably don't start with .0)
 # 172.25.0.1/16
 lookup_bridge: mcbr_bridge # only alphanumbric and underscore
+
 # lookup_bridge_mac_prefix: '52:54:00'
-# `ovn_uplink_interface` is optional and represents the name of the interface
-# that will be created and reserved for use with OVN
+# # `ovn_uplink_interface` is optional and represents the name of the interface
+# # that will be created and reserved for use with OVN
 ovn_uplink_interface: eth9
-ovn_uplink_subnet: 192.168.32.1/20
+vlan: vlan0
+# ovn_uplink_subnet: 192.168.32.1/20
+
 # location where various packages will be installed
 package_dir: /usr/bin
 
 # be careful with the hannelvalues, ensure they are correct
 # or the setup will fail without a proper indication as to why
 snapd_channel: latest/stable
+ngrok_channel: v3/stable
 core_channel: latest/stable
 lxd_channel: 5.21/stable
 microceph_channel: reef/stable

@@ -40,7 +40,8 @@
 
 - name: Reboot
   ansible.builtin.reboot:
-  when: provider != "azure"
+  when: var_provider != "azure"
+
 
 - name: Check if secondary ip exists on {{ipv4_address_iface}}
   shell: |
@@ -57,17 +58,18 @@
   command: ip addr del {{ secondary_ip.stdout }} dev {{ipv4_address_iface}}
   when: secondary_ip.stdout != ""
 
-- name: Ping test all-to-all network connectivity
-  command: |-
-    ping -c 2 {{ ip_dest }}
-  vars:
-    index_key: "{{ hostvars[item]['index_key'] }}"
-    ip_dest: '{{ lookup_subnet | ansible.utils.next_nth_usable(index_key | int) }}'
-  loop: "{{ groups[ansible_limit] }}"
-  register: ping_results
-  retries: 3
-  delay: 3
-  until: ping_results.rc == 0
+# - name: Ping test all-to-all network connectivity
+#   when: var_provider != ""
+#   command: |-
+#     ping -c 2 {{ ip_dest }}
+#   vars:
+#     index_key: "{{ hostvars[item]['index_key'] }}"
+#     ip_dest: '{{ lookup_subnet | ansible.utils.next_nth_usable(index_key | int) }}'
+#   loop: "{{ groups[ansible_limit] }}"
+#   register: ping_results
+#   retries: 3
+#   delay: 3
+#   until: ping_results.rc == 0
 
 # - name: Temporarily enable per-link MulticastDNS for {{ lookup_bridge }}
 #   command: resolvectl mdns {{ lookup_bridge }} yes
@@ -96,11 +98,13 @@
   delegate_to: '{{ansible_play_hosts[0]}}'
   run_once: true
   shell:
-    # cmd: microcloud init --address {{address}} --auto --debug --verbose # I give up on preseed
     cmd: >-
       cat /tmp/infra-{{ansible_limit}}-preseed.yml |
-      microcloud init --address {{address}}
-      --preseed --debug --verbose
+      microcloud init --preseed --debug --verbose
+    # cmd: >-
+    #   cat /tmp/infra-{{ansible_limit}}-preseed.yml |
+    #   microcloud init --address {{address}}
+    #   --preseed --debug --verbose
     # --state-dir /var/snap/microcloud/common/state
   register: init_result
   ignore_errors: true

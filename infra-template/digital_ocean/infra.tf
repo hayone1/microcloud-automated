@@ -98,7 +98,7 @@ resource "ssh_resource" "hosts-data" {
   commands    = [
     <<EOF
       local_volume_path=$(df | awk '{print $1, $6}' | grep ${try(digitalocean_volume.local-volumes[count.index].name, "_none")} | awk '{print $1}') &&
-      ceph_volume_path=$(df | awk '{print $1, $6}' | grep ${try(digitalocean_volume.ceph-volumes[count.index].name, "_none")} | awk '{print $1}') &&
+      ceph_volume_paths=$(df | awk '{print $1, $6}' | grep ${try(digitalocean_volume.ceph-volumes[count.index].name, "_none")} | awk '{print $1}') &&
       index=$(echo -n ${digitalocean_droplet.microcloud-vms[count.index].name} | tail -c 1)  &&
       provider='digital_ocean' &&
       hostname=$(hostname) &&
@@ -107,7 +107,7 @@ resource "ssh_resource" "hosts-data" {
       ipv4_address_private='${digitalocean_droplet.microcloud-vms[count.index].ipv4_address_private}' &&
       ipv4_address_private_iface=$(ip -o addr show | grep "inet $ipv4_address_private" | awk '{print $2}') &&
       ipv4_address_private_cidr=$(ip -o addr show | grep "inet $ipv4_address_private" | awk '{print $4}') &&
-      echo -e "provider: $provider\nhostname: $hostname\nipv4_address: $ipv4_address\nipv4_address_iface: $ipv4_address_iface\nipv4_address_private: $ipv4_address_private\nindex_key: $index\nlocal_volume_path: $local_volume_path\nceph_volume_path: $ceph_volume_path\nipv4_address_private_cidr: $ipv4_address_private_cidr\nipv4_address_private_iface: $ipv4_address_private_iface\n"
+      echo -e "provider: $provider\nhostname: $hostname\nipv4_address: $ipv4_address\nipv4_address_iface: $ipv4_address_iface\nipv4_address_private: $ipv4_address_private\nindex_key: $index\nlocal_volume_path: $local_volume_path\nceph_volume_paths: $ceph_volume_paths\nipv4_address_private_cidr: $ipv4_address_private_cidr\nipv4_address_private_iface: $ipv4_address_private_iface\n"
     EOF
   ]
 }

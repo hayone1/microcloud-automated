@@ -63,7 +63,7 @@ A Valid Output would produce something like the below:
       "104.131.191.142": {
         // The volumes are the name of the volume as seen from
         // within the server itself (eg. when you run lsblk)
-        "ceph_volume_path": "/dev/sdb", // required for distributed storage
+        "ceph_volume_paths": "/dev/sdb", // required for distributed storage
         "local_volume_path": "/dev/sda", // required for local storage
         "hostname": "micro-vm-0", //not required. as seen on the local network
         "index_key": 0, // not required, can be used for internal purposes
@@ -71,7 +71,7 @@ A Valid Output would produce something like the below:
         "ipv4_address_private": "10.108.0.2/20" // required, Ip on the local network
       },
       "138.197.44.53": {
-        "ceph_volume_path": "/dev/sdb",
+        "ceph_volume_paths": "/dev/sdb",
         "local_volume_path": "/dev/sda",
         "hostname": "micro-vm-1",
         "index_key": 1,
@@ -96,6 +96,8 @@ A Valid Output would produce something like the below:
 | https://netplan.readthedocs.io/en/stable/examples/#how-to-configure-network-bridges |
 | https://github.com/canonical/microcloud/issues/256 |
 | https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/8/html/configuring_and_managing_networking/assembly_using-a-vxlan-to-create-a-virtual-layer-2-domain-for-vms_configuring-and-managing-networking#proc_proc_configuring-virtual-machines-to-use-vxlan_assembly_using-a-vxlan-to-create-a-virtual-layer-2-domain-for-vms | 
+| https://gist.github.com/jimmydo/e4943950427234408a1aaa2d7beda8b6?permalink_comment_id=5069697#file-ubuntu-server-multicast-dns-md |
+| https://www.digitalocean.com/community/tutorials/how-to-setup-a-firewall-with-ufw-on-an-ubuntu-and-debian-cloud-server |
 
 ### Important
 Do not edit the root .gitignore file directly. Any pull requests with a change to the .gitignore file will be rejected.

@@ -101,12 +101,3 @@ ___
 ## More Info
 - For a list of valid regions see [here](https://github.com/claranet/terraform-azurerm-regions/blob/master/regions.tf)
 - For how to see valid VM images, see [here](https://learn.microsoft.com/en-us/azure/virtual-machines/linux/cli-ps-findimage)
-
-
-<!-- - Set the name of the ssh key you created in the `ssh_key_name:` field of each of your desired environments.
-eg. (if the key name is `root_ssh`) -->
-<!-- ``` yaml
-...
-ssh_key_name: root_ssh
-...
-``` -->

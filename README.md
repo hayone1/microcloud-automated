@@ -1,63 +1,98 @@
+
 # Microcloud Automated
+Automated provisioning of microcloud on private/public clouds at scale.
 
 <!-- [![GitHub Issues](https://img.shields.io/github/issues/acch/ansible-boilerplate.svg)](https://github.com/acch/ansible-boilerplate/issues) [![GitHub Stars](https://img.shields.io/github/stars/acch/ansible-boilerplate.svg?label=github%20%E2%98%85)](https://github.com/acch/ansible-boilerplate/) [![License](https://img.shields.io/github/license/acch/ansible-boilerplate.svg)](LICENSE) -->
 
-[Micro Cloud](https://canonical-microcloud.readthedocs-hosted.com/en/latest/) allows you to deploy your own fully functional private cloud in minutes.
+Terraform          |  Microcloud | Ansible
+:-------------------------:|:-------------------------:|:-------------------------:
+![alt text](./docs/photos/icon-Terraform-x128.png) |  ![alt text](./docs/photos/icon-microcloud-orange.png) | ![alt text](./docs/photos/icon-ansible-red-x128.png)
 
-This project is generally intended for experimentation/evaluation and can be improved/customized to fit your unique needs to become production ready.
 
-This project has 2 sections that can be independently depoyed and managed. They are
-1. Deploying networked compute to various cloud providers in an opinionated yet flexible way.
-2. Deploying microcloud on said compute.
+## Introduction
 
-## 1. Getting-Started
+[MicroCloud](https://canonical-microcloud.readthedocs-hosted.com/en/latest/) claims to be micro because it allow you to provision your own fully functional private cloud in minutes in an opinionated way.
+
+Installation is done using snap commands ans would greatly benefit from automated provisioning at scale. Hence **Microcloud Automated**.🤷‍♂️
+
+> This project is generally intended for experimentation/evaluation and can be improved/customized to fit your unique needs to become production ready.
+
+This project has 2 sections that can be independently deployed and managed. They are
+1. Deploying network connected compute to various cloud providers in an opinionated yet flexible way.
+2. Deploying microcloud on said or custom compute.
+
+## TOC
+<!-- TOC -->
+
+- [Microcloud Automated](#microcloud-automated)
+    - [Introduction](#introduction)
+    - [TOC](#toc)
+    - [Getting-Started](#getting-started)
+        - [Pre-requisites](#pre-requisites)
+        - [Infra](#infra)
+            - [New Infra](#new-infra)
+            - [Existing Infra](#existing-infra)
+    - [Deployment](#deployment)
+    - [Extra Configuration](#extra-configuration)
+        - [Preseed](#preseed)
+    - [To-Do](#to-do)
+    - [Community](#community)
+    - [Maintainers](#maintainers)
+    - [Copyright and license](#copyright-and-license)
+
+<!-- /TOC -->
+
+## Getting-Started
 
 Download (clone) or fork this repository.
 The major places of interest for customization will be in the [group_vars](group_vars/) folder.
 
-### 1.1 Pre-requisites
+### Pre-requisites
 - [yq 4.x](https://github.com/mikefarah/yq/#install)
 - [jq](https://jqlang.github.io/jq/download/)
 - [terraform](https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli)
 - [ansible](https://docs.ansible.com/ansible/latest/installation_guide/intro_installation.html)
 - [taskfile](https://taskfile.dev/installation/)
-- [faketime](https://manpages.ubuntu.com/manpages/trusty/man1/faketime.1.html)
-- Ensure your system time is correct and `date -u` gives the correct utc time!
+- [faketime](https://manpages.ubuntu.com/manpages/trusty/man1/faketime.1.html) (Optional, but useful when using IBM Cloud)
+  - Ensure your system time is correct and `date -u` gives the correct utc time!
 
-### 1.2 Infra
+### Infra
 To setup microcloud you will need to have compute and network resources. This could be from a cloud provider or your private servers.
 
-- Inside the [group_vars](group_vars/) folder, edit the `all.yml` file, and specify the environments you're interested in setting-up under the `groups:` field. Arbitrary values are allowed
- eg.
-```
-groups:
-  - dev
-  - uat
-```
-
-- Also in the group_vars folder, duplicate the `dev.yml` and `dev.env`(used to hold required environment variables and secrets) files to match the number of items/environments you have put in the `groups:` field and rename each file to match the items in the groups.
+ - In the group_vars folder, duplicate the `dev.yml.example` and `dev.env.example` and remove `.example` from each file's name.
 eg.
-```
+``` shell
 dev.yml
 uat.yml
+# used to hold required environment variables and secrets
 dev.env
 uat.env
 ```
-- In each group/environment specific file, specify the `group_name`, `ansible_user:`, `ansible_ssh_public_key_file:`, `ansible_ssh_private_key_file:` and `infra_providers` you are interested in deploying compute to.
-For `infra_providers` You can use arbitrary values or one of the supported cloud providers of this project.
+- In each group/environment specific file, specify the `ansible_user:`, `ansible_ssh_public_key_file:`, `ansible_ssh_private_key_file:`.
 
 eg.
 ``` yaml
-ansible_user: root
-infra_providers:
-  self_hosted:
-  digital_ocean:
+# dev.yml
+ansible_ssh_host_key_checking: false
+ansible_user: microcloud
+ansible_ssh_private_key_file: ~/.ssh/id_rsa
+ansible_ssh_public_key_file: ~/.ssh/id_rsa.pub
 ```
-> Currently supported cloud providers are: `digital_ocean`, `azure`.
 
-- If using a supported cloud provider, you can specify the `size`, `quantity:` and `region:`, `cephfs_volume_size`, `ceph_volume_size` and more under the cloud provider's field.
+- **Take a detour to the [infra-template](infra-template/) folder and go through the respective README(s) of the infra_provider(s) you chose.**
+
+#### New Infra
+If you're provisioning your infra via this project, you can specify the `infra_providers:` you are interested in deploying compute to.
+For `infra_providers:` You can use arbitrary values or one of the supported cloud providers of this project.
+
+> Currently supported cloud providers are: `azure`.
+
+- There are a couple of options available to you to specify.
+
 eg.
 ``` yaml
+#... truncated for brevity
+ansible_ssh_public_key_file: ~/.ssh/id_rsa.pub
 infra_providers:
   digital_ocean:
     # custom, nano, micro, small, medium, large, xlarge, 2xlarge
@@ -75,39 +110,136 @@ infra_providers:
     quantity: 3
     # see valid regions here https://slugs.do-api.dev/
     region: "nyc3"
+  azure:
+    quantity: 3
+    size: custom
+    custom_sizes:
+      - Standard_D2s_v3
+      - Standard_D2s_v3
+      - Standard_B2s
+    security_rules:
+      allowed_ports: [22, 80, 443, 8443]
+      allowed_source_address_prefix: "0.0.0.0/0"
+      allowed_destination_address_prefix: "0.0.0.0/0"
+    # ingress_prefix
+    image: # all mandatory
+      publisher : "Canonical"
+      offer     : "ubuntu-24_04-lts"
+      sku       : "server"
+      version   : "latest"
+    local_volume_sizes: [3]
+    ceph_volume_sizes: [3]
+    region: "westus"
+    tag:
+      Provider: "azure"
 ```
+- There are also additional fields that can be specific for each cloud provider.
 - If you specify `size: custom` in a provider, you must declear the  `custom_sizes:` list.
-It's best to either make the `custom_sizes:` list have only one entry or entries equal to
+It's best to either make the `custom_sizes:` list have only one item or items equal to
 `quantity:`.
 > If your `custom_sizes:` list length is less than the `quantity:` value, then the remaining
 servers will be assigned the size of the last entry in your `custom_sizes:` list.
 This gives room for some interesting customizations on the size options you may want to configure.
 
-- If you have already setup your compute by yourself or used a provivder 
-that is not yet supported, then you'd only need to specify the `hosts:` field.
+| Supported Providers | status |
+|---------------------|--------|
+| custom              | ✅ |
+| azure               | ✅ |
+| digital_ocean       | 🟡 |
+| oracle_cloud        | 🟡 |
+| aliyun              | 🟡 |
+| ibm_cloud           | ❌ |
+| aws                 | ❌ |
 
-  This is essentially ansible hosts config so you can put any valid ansible hosts value. See [examples](https://docs.ansible.com/ansible/latest/inventory_guide/intro_inventory.html).
+#### Existing Infra
+- If you have already setup your compute outside this project, then you can specify the `hosts:` field instead of the `infra_providers:` field.
+
+  This is essentially ansible hosts config so you can put any valid ansible hosts value. See [official examples](https://docs.ansible.com/ansible/latest/inventory_guide/intro_inventory.html).
+- You'll need to make sure that your compute resources have:
+  * layer 2 or layer 3 network connectivity to each other.
+  * you have ssh and root access to said compute.
+  * If you don't have your ssh keys added to the target nodes, then you'll need to
+  specify your user details using the below keys to your env file:
+
+``` env
+# .env or <group>.env
+TF_VAR_ANSIBLE_BECOME_PASS=sudo_user
+TF_VAR_ANSIBLE_SSH_PASS=sudo_user_password
+```
+
+eg.
 ``` yaml
+# sit.yml
+#...
+# For values that may be common to all hosts, you can specify them on this level eg.
+common_config: 'Hello World'
 infra_providers:
+  # can be any name but try avoiding the exact names of the
+  # supported cloud providers
   self_hosted:
     hosts:  # only host field will be used if specified
-      # hostname and ipv4_address_private are manatory
-      10.1.1.0: # public IP
-        # local ip in subnet form
-        ipv4_address_private: "192.168.20.50/24" # [mandatory]
-        hostname: micro-vm-0 # [mandatory]
-      # where ipv4_address_private is not specified like the below,
-      # the IP key(s) will be considered for both public
-      # and private IP use
-      64.18.0.1:
-        hostname: micro-ec-0
-        ipv4_address_private: "192.168.20.55/24"
-        # you can specify volume names (as seen from lsblk)
-        ceph_volume: sdb # for distributed storage
-        local_volume: sda # for local storage
+       # [mandatory]
+      192.168.0.144: # public IP or private address that's reacheable from the master node execution environment.
+        # [mandatory]
+        hostname: homelabnode1
+        # [mandatory]
+        index_key: 0
+        # [mandatory]
+        ipv4_address: 192.168.0.144 # public IP or private address that's reacheable from the master node execution environment.
+        # [mandatory]
+        ipv4_address_iface: eno0
+        # [mandatory]
+        ipv4_address_private: 192.168.0.144
+        # [mandatory]
+        ipv4_address_private_iface: eno0
+        # [mandatory]
+        local_volume_path: /dev/mmcblk0
+        # [mandatory]
+        #This is The interface whose subnet will be used in the mDNS lookup search for other nodes.
+        # usualy, it'll just be the same as your ipv4_address_iface
+        lookup_bridge: eno0
+        # [optional]
+        #if you're setting up ceph, you must specify at least 3 volumes ( min 1 per node)
+        ceph_volume_paths:
+          - path: /dev/sda
+            wipe: true
+        # provider: azure # only specify this field if you want to use the networking strategy of a supported cloud provider instead of the default.
+      192.168.0.145:
+        ceph_volume_paths:
+          - path: /dev/sda
+            wipe: true
+        hostname: rpi-1
+        index_key: 1
+        ipv4_address: 192.168.0.145
+        ipv4_address_iface: eth0
+        ipv4_address_private: 192.168.0.145
+        ipv4_address_private_iface: eth0
+        local_volume_path: /dev/sdb
+        lookup_bridge: eth0
+        # provider: azure
+      192.168.0.147:
+        ceph_volume_paths:
+          - path: /dev/sda
+            wipe: true
+        hostname: orangepi4-lts-0
+        index_key: 2
+        ipv4_address: 192.168.0.147
+        ipv4_address_iface: eth0
+        ipv4_address_private: 192.168.0.147
+        ipv4_address_private_iface: eth0
+        local_volume_path: /dev/mmcblk0
+        lookup_bridge: eth0
+        # provider: azure
       host.example.com:
         hostname: micro-vm-1
-        ipv4_address_private: "192.168.30.51/24"
+        index_key: 3
+        ipv4_address: 192.168.0.146
+        ipv4_address_iface: eth0
+        ipv4_address_private: 192.168.0.146
+        ipv4_address_private_iface: eth0
+        local_volume_path: /dev/mmcblk0
+        lookup_bridge: eth0
+        # provider: azure
         # you can specify other variables as you wish
         http_port: 80
         maxRequestsPerChild: 808
@@ -116,67 +248,50 @@ infra_providers:
       # www[01:50].example.com:
     quantity: 3 # has no effect
 ```
-> Important: This project is currently only tested on **ubuntu** 22.04 LTS..
-
-- You can also have multiple infra_providers.
-eg.
-```yaml
-infra_providers:
-  self_hosted:
-    hosts:
-      64.18.0.0:
-      64.18.0.1:
-  digital_ocean:
-    size: nano
-    quantity: 3
-    region: "nyc3"
-```
-
-- Take a detour and head over to the [infra-template](infra-template/) folder and locate the sub folder(s) of the infra_provider(s) you chose and go through their respective README(s).
+> Important: This project is currently has only been tested successfully on ubuntu 22.04 LTS, ubuntu 24.04 LTS.
 
 > **Very Important**: No matter the approach you take to create your compute resources,
-you must **ensure they are visible to each other over a local or private network!**
+you must **ensure they are visible to each other over a local/private network!**
 
-> If you get an error saying your `id_rsa` permissions are too open, you may want to changr it's permission using a comand like `chmod 600 ~/.ssh/id_rsa`.
 
-## 2 Deployment<a id='2'></a>
-- Open a terminal in the root of this project and ensure you
+
+## Deployment
+On the sweet part.
+- Open a terminal in the root of this project.
+ > Important: ensure you
 have the task package installed.
 - To get the list of available tasks you can run `task --list`
 - To deploy microcloud for a specific environment/group,
 you'll can to run commands in the below formats:
 
 ```shell
-task microcloud-<group>-up
-# or the below three
 task infra-create-<group>
+task run-deploy-cache-<group> # basically just update_cache, you don't need to run this all the time.
 task run-deploy-init-<group>
 task run-deploy-install-<group>
 ```
 eg.
 ``` shell
-task microcloud-dev-up
-# or the below three
 task infra-create-dev
+task run-deploy-cache-dev
 task run-deploy-init-dev
 task run-deploy-install-dev
 ```
-<!-- - To deploy microcloud on all the environments/groups specified in the `all.yml`, simply run the below:
-``` shell
-task microcloud-all-up
-# or the below three
-task infra-create-all
-task run-deploy-init-all
-task run-deploy-install-all -->
 
-<!-- - To preview the list of bash commands that will be run in the microcloud
-installation process, just add `--dry` to any command you use.
+- To run all activities you can use the below command.
+```shell
+task microcloud-<group>-up
+```
+You can use this to setup multiple environments quickly.
+
 eg.
-``` shell
-task microcloud-dev-up --dry
-task infra-destroy-dev --dry
-``` -->
-
+```shell
+task microcloud-dev-up &
+task microcloud-test-up &
+task microcloud-sit-up &
+```
+> You should probably start off using the individual commands until you're confident
+that the up command will run all through without hicupps.
 
 - To preview the list of ansible tasks that will be run in the microcloud
 installation process and the hosts that will be affected,
@@ -198,26 +313,35 @@ task run-deploy-install-<group>
 - After infra setup, if you want to see the list of IPs in a summarized form
 simply run your `task infra-create-<group>` command again.
 
-- To rollback or destroy the deployments, simply run commands of the below format: 
-``` bash
-task destroy-infra-<group>
-task destroy-microcloud-<group>
+- If you wish to undo the microcloud installation you can run the below command format.
+``` shell
+task deploy-rollback-<group>
 ```
-eg.
-``` bash
-task destroy-infra-all
-task destroy-microcloud-all
+- To tear down the infra created using this project or remove a reference to an existing infra, simply run command of the below format: 
+``` shell
+task microcloud-<group>-down
 ```
 
-## 3 Extra Configuration<a id='3'></a>
+## Extra Configuration
 
-### 3.1 Preseed
+### Preseed
 microcloud initialization supports a non interactive setup using a preseed.
 See [example](https://canonical-microcloud.readthedocs-hosted.com/en/latest/how-to/initialise/#howto-initialise-preseed).
 
-For this project, you only need to configure `ovn`. Other fields like `systems` and `storage` will be automatically populated based on other fields that you have provided.
+- If you want this project to setup all requirements for microcloud installation but you don't want
+it to run `microcloud init` for you, then set `use_preseed: false` anywhere it can be read as an ansible variable eg. inside `all.yml` or `<group>.yml`.
 
-## 4 Community<a id='4'></a>
+For this project, you only need to configure `ovn`. Fields like `systems` and `storage` will be automatically populated based on other fields that you have provided.
+
+## To-Do
+- [ ] Add group_vars validation using CUElang
+- [ ] Complete setup test on digital_ocean
+- [ ] Complete setup test on oracle_cloud
+- [ ] Complete setup test on aliyun
+- [ ] Add support for ibm_cloud
+- [ ] Add support for aws
+
+## Community
 
 - Contributing
     - Contributions are very welcome. See [contributing guide](CONTRIBUTING.md).
@@ -229,10 +353,10 @@ For this project, you only need to configure `ovn`. Other fields like `systems` 
       - vagrant
     - Add steps to actually provision microcloud cluster.
 
-## 5 Maintainers<a id='5'></a>
+## Maintainers
 - Boluwatife @hayone1
 - Deborah @Debby77
 
-## 6 Copyright and license<a id='6'></a>
+## Copyright and license
 
 This project is released under the [GNU GPLv3](LICENSE)
