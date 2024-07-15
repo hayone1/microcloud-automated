@@ -80,17 +80,49 @@ eg. in dev.yml
 ``` yaml
 prefix: micro
 #...
-azure:
+---
+ansible_ssh_host_key_checking: false
+ansible_user: microcloud
+ansible_ssh_private_key_file: ~/.ssh/id_rsa
+ansible_ssh_public_key_file: ~/.ssh/id_rsa.pub
+
+# lookup_subnet: 10.0.1.1/24
+
+prefix: micro
+use_preseed: true
+tag:
+  System:       "microcloud"
+  Creator:      "terraform"
+  Environment:  "test"
+
+infra_providers:
+  azure:
     quantity: 3
-    size: nano
-    region: "nyc3"
-    image: 
-        sku: ubuntu-22-04-x64
-    # custom_sizes: ['s-1vcpu-512mb-10gb'] # region sensitive 
+    size: custom
+    custom_sizes:
+      - Standard_D2s_v3
+      - Standard_D2s_v3
+      - Standard_B2s
+    security_rules:
+      allowed_ports: [22, 80, 443, 8443]
+      allowed_source_address_prefix: "0.0.0.0/0"
+      allowed_destination_address_prefix: "0.0.0.0/0"
+    # ingress_prefix
+    image: # all mandatory
+      publisher : "Canonical"
+      offer     : "ubuntu-24_04-lts"
+      sku       : "server"
+      version   : "latest"
+      # publisher : "Canonical"
+      # offer     : "0001-com-ubuntu-server-jammy"
+      # sku       : "22_04-lts"
+      # version   : "latest"
     local_volume_sizes: [3]
     ceph_volume_sizes: [3]
+    region: "westus"
     tag:
-        prov: "do"
+      Provider: "azure"
+
 ```
 > Tip: Before configuring your sizing, you should consider checking your subscription resource quota limits
 for your chosen region. eg. `az vm list-usage --location "West US 2" --output table`

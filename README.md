@@ -29,9 +29,9 @@ This project has 2 sections that can be independently deployed and managed. They
     - [TOC](#toc)
     - [Getting-Started](#getting-started)
         - [Pre-requisites](#pre-requisites)
-        - [Infra](#infra)
-            - [New Infra](#new-infra)
-            - [Existing Infra](#existing-infra)
+    - [Infra](#infra)
+        - [New Infra](#new-infra)
+        - [Existing Infra](#existing-infra)
     - [Deployment](#deployment)
     - [Extra Configuration](#extra-configuration)
         - [Preseed](#preseed)
@@ -56,7 +56,7 @@ The major places of interest for customization will be in the [group_vars](group
 - [faketime](https://manpages.ubuntu.com/manpages/trusty/man1/faketime.1.html) (Optional, but useful when using IBM Cloud)
   - Ensure your system time is correct and `date -u` gives the correct utc time!
 
-### Infra
+## Infra
 To setup microcloud you will need to have compute and network resources. This could be from a cloud provider or your private servers.
 
  - In the group_vars folder, duplicate the `dev.yml.example` and `dev.env.example` and remove `.example` from each file's name.
@@ -79,13 +79,13 @@ ansible_ssh_private_key_file: ~/.ssh/id_rsa
 ansible_ssh_public_key_file: ~/.ssh/id_rsa.pub
 ```
 
-- **Take a detour to the [infra-template](infra-template/) folder and go through the respective README(s) of the infra_provider(s) you chose.**
-
-#### New Infra
+### New Infra
 If you're provisioning your infra via this project, you can specify the `infra_providers:` you are interested in deploying compute to.
 For `infra_providers:` You can use arbitrary values or one of the supported cloud providers of this project.
 
 > Currently supported cloud providers are: `azure`.
+
+The below section is a summative content, you should **Take a detour to the [infra-template](infra-template/) folder and go through the respective README(s) of the infra_provider(s) you chose.**
 
 - There are a couple of options available to you to specify.
 
@@ -151,7 +151,7 @@ This gives room for some interesting customizations on the size options you may 
 | ibm_cloud           | ❌ |
 | aws                 | ❌ |
 
-#### Existing Infra
+### Existing Infra
 - If you have already setup your compute outside this project, then you can specify the `hosts:` field instead of the `infra_providers:` field.
 
   This is essentially ansible hosts config so you can put any valid ansible hosts value. See [official examples](https://docs.ansible.com/ansible/latest/inventory_guide/intro_inventory.html).
