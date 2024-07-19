@@ -4,7 +4,7 @@
 # bridge_ipv4_address: {{ local_lookup_ip }}
 network:
     version: 2
-    renderer: NetworkManager
+    renderer: networkd
     ethernets:
         {{ ipv4_address_private_iface }}:
             addresses: [ '{{ default_ip_cidr.stdout }}' ]
@@ -13,18 +13,9 @@ network:
             routes:
                 - to: default
                   via: {{ default_gateway.stdout }}
+                - to: 224.0.0.0/4
+                  type: multicast
     bridges:
         {{ ovn_uplink_interface }}:
             dhcp4: no
             dhcp6: no
-    tunnels:
-        {{ tunnel_name}}:
-            mode: '{{tunnel_type | default("ipip")}}'
-            remote: "{{ remote_default_ip }}"
-            local: "{{ ipv4_address_private }}"
-            #addresses: [ '{{ local_lookup_ip }}/{{ local_bridge_prefix }}' ]
-            ttl: 255
-            #routes:
-            #    - to: 224.0.0.0/4
-            #      via: 0.0.0.0
-            #      dev: {{ tunnel_name}}

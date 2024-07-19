@@ -40,7 +40,10 @@
 
 - name: Reboot
   ansible.builtin.reboot:
-  when: var_provider != "azure"
+  when: >-
+    var_provider != "azure" and
+    allow_reboot is defined and
+    allow_reboot == true
 
 
 - name: Check if secondary ip exists on {{ipv4_address_iface}}

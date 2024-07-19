@@ -6,10 +6,12 @@
 # The below details will be used to create a virtual multicast network tunnel
 # (and optionally a bridge) to allow microcloud locate other servers with mDNS reliably.
 
-# don't use the same or overlapping private subnet as the main interface's ip.
-# eg. 10.0.0.0/16 as the default private subnet for some providers
-lookup_subnet: 172.25.0.1/16 # bridge start ip subnet (preferably don't start with .0)
-# 172.25.0.1/16
+# ip of subnet where multicast will work.
+# if unsure, use the subnet of the main private network
+lookup_subnet: 192.168.0.1/24 # bridge start ip subnet (preferably don't start with .0)
+
+# if servers don't share a common interface name
+# you can override this for each server's host_vars
 lookup_bridge: mcbr_bridge # only alphanumbric and underscore
 
 # lookup_bridge_mac_prefix: '52:54:00'

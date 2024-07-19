@@ -38,7 +38,6 @@
     local_volume_path != None and
     local_volume_path != ""
   command: wipefs -a {{ local_volume_path }}
-  loop: '{{ ceph_volume_paths }}'
 
 
 - name: Remove netplan in remote host
